@@ -29,6 +29,11 @@ import pandas as pd
 # protected properties, functions, and methods within the Base class
 class Base(object):
 
+    #__init__() "MAGIC METHOD" CREATES:
+    #   self.current_status AS STR
+    #   self.num_past_years AS INT
+    #   self.team_list AS LIST
+    #   self.current_year AS INT
     def __init__(self, num_past_years, team_list):
         self.current_status = 'STATUS INFOMATION LOG BEGIN'
         self.__SetStatusMessage__('Initializing class')
@@ -42,12 +47,19 @@ class Base(object):
                               + str(self.num_past_years) + ' years')
         self.__GetMultiYearScheduleAllTeams__()
    
+    #METHOD APPENDS self.current_status WITH NEW MESSAGE STRING
     def __SetStatusMessage__(self, msg=""):
         self.current_status = self.current_status + '; \n' + msg
     
+    #METHOD DISPLAYS self.current_status WHICH IS STRING
     def __ShowStatus__(self):
         print(self.current_status)
 
+    #METHOD CREATES self.df_multi_yr_schedule_all_teams AS PANDAS DATAFRAME
+    #   AND CREATES self.team_schedule_frame_list[team_list_index] AS LIST
+    #   AND CREATES self.html_next_game_info[team_list_index] AS LIST
+    #   AND CREATES self.html_last_game_info[team_list_index] AS LIST
+    #   WHERE team_list_index IS THE INDEX OF THE TEAM FROM self.team_list[]
     def __GetMultiYearScheduleAllTeams__(self):
 
         self.df_multi_yr_schedule_all_teams = pd.DataFrame()
@@ -68,8 +80,6 @@ class Base(object):
             None
         )
         self.__SetStatusMessage__('Flagged games involving teams on the watch list')
-
-    def __TeamListRecordsByYear__(self):
 
         #initialize the list that will hold the team schedule dfs
         self.team_schedule_frame_list = []
@@ -255,65 +265,184 @@ class Base(object):
             #increment the for loop counter
             count = count + 1
         
+    #FUNCTION RETURNS WIN-LOSS RECORD FOR A GIVEN TEAM AND SEASON
+    #SEASON IS YEAR, MUST BE WITHIN LAST num_past_years YEARS
+    def __FindTeamRecordByYear__(self, record_team, record_year):
+        #create a df to hold the team records
+        df_record = pd.DataFrame()
+        df_record = self.df_multi_yr_schedule_all_teams.copy()
+        #seems redundant, but this suppresses the copy/slice/copy warning
+        df_record = df_record.copy()
+        
+        #create new fields used to calculate record
+        df_record['record_team'] = record_team
+        df_record['team_pts'] = None
+        df_record['opponent_pts'] = None
+
+        df_record['team_pts'] = np.where(
+            df_record['home_team'] == record_team,
+            df_record['home_points'],
+            df_record['team_pts']
+        )
+        df_record['team_pts'] = np.where(
+            df_record['away_team'] == record_team,
+            df_record['away_points'],
+            df_record['team_pts']
+        )
+        df_record['opponent_pts'] = np.where(
+            df_record['home_team'] == record_team,
+            df_record['away_points'],
+            df_record['opponent_pts']
+        )
+        df_record['opponent_pts'] = np.where(
+            df_record['away_team'] == record_team,
+            df_record['home_points'],
+            df_record['opponent_pts']
+        )
+        df_record['team_win_bool'] = np.where(
+            df_record['team_pts'] > 
+            df_record['opponent_pts'],
+            1,
+            0
+        )
+            
+        df_record = df_record[
+            (
+                (df_record['home_team'] == record_team) |
+                (df_record['away_team'] == record_team)
+            ) &
+            (df_record['season'] == record_year) &
+            (df_record['team_pts'] >= 0)
+        ]
+        
+        #df_record = df_record[['record_team', 'season', 'week', 'team_win_bool']]
+
+        df_record['game_count'] = df_record.groupby('season')['team_win_bool'].count().iloc[-1]
+        df_record['win_count'] = df_record.groupby('season')['team_win_bool'].sum().iloc[-1]
+        df_record['loss_count'] = df_record['game_count'] - df_record['win_count']
+        
+        win_loss_record = str(df_record['win_count'].iloc[-1]) + '-' + str(df_record['loss_count'].iloc[-1])
+
+        df_record.drop(['game_count', 'win_count', 'loss_count'], axis=1, inplace=True)
+        
+        return win_loss_record, df_record
+
+    #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE INFO FOR A GIVEN TEAM-OPPONENT
+    #PAIRING OVER THE COURSE OF A SERIES THAT SPANS FROM num_past_years SEASONS
+    #AGO UNTIL CURRENT SEASON
+    def __FindTeamVsOpponentRecentSeriesRecord__(self, series_team, series_opponent):
+        #create a df to hold the series records
+        df_series = pd.DataFrame()
+        df_series = self.df_multi_yr_schedule_all_teams.copy()
+        #seems redundant, but this suppresses the copy/slice/copy warning
+        df_series = df_series.copy()
+        
+        #create new fields used to calculate record
+        df_series['series_team'] = series_team
+        df_series['series_opponent'] = series_opponent
+        df_series['team_pts'] = None
+        df_series['opponent_pts'] = None
+
+        df_series['team_pts'] = np.where(
+            df_series['home_team'] == series_team,
+            df_series['home_points'],
+            df_series['team_pts']
+        )
+        df_series['team_pts'] = np.where(
+            df_series['away_team'] == series_team,
+            df_series['away_points'],
+            df_series['team_pts']
+        )
+        df_series['opponent_pts'] = np.where(
+            df_series['home_team'] == series_team,
+            df_series['away_points'],
+            df_series['opponent_pts']
+        )
+        df_series['opponent_pts'] = np.where(
+            df_series['away_team'] == series_team,
+            df_series['home_points'],
+            df_series['opponent_pts']
+        )
+        df_series['team_win_bool'] = np.where(
+            df_series['team_pts'] > 
+            df_series['opponent_pts'],
+            1,
+            0
+        )
+        df_series['winner'] = np.where(
+            df_series['home_points'] > df_series['away_points'],
+            df_series['home_team'],
+            df_series['away_team']
+        )
+        df_series['team_venue'] = np.where(
+            df_series['home_team'] == series_team,
+            'Home',
+            'Away'
+        )
+            
+        df_series = df_series[
+            (
+                (df_series['home_team'] == series_team) |
+                (df_series['away_team'] == series_team)
+            ) &
+            (
+                (df_series['home_team'] == series_opponent) |
+                (df_series['away_team'] == series_opponent)
+            ) &
+            (
+                df_series['home_team'] != df_series['away_team']
+            ) &
+            (
+                df_series['team_pts'] >= 0
+            )
+        ]
+        
+        df_series = df_series[[
+            'season',
+            'week',
+            'season_type',#
+            'series_team',#
+            'series_opponent',#
+            'team_pts',#
+            'opponent_pts',#
+            'winner',#
+            'team_venue',#
+            'team_win_bool'
+        ]]
+
         
         
-#    def __request_gameframe__(self):
-#        gameframe = cfb_func.get_gameframe(self.team1, self.game_yr, self.num_past_years, self.game_wk)
-#        return gameframe
+        
+        df_series['game_count'] = df_series.groupby('series_team')['team_win_bool'].count().iloc[-1]
+        df_series['win_count'] = df_series.groupby('series_team')['team_win_bool'].sum().iloc[-1]
+        df_series['loss_count'] = df_series['game_count'] - df_series['win_count']
+        
+        win_loss_record = str(df_series['win_count'].iloc[-1]) + '-' + str(df_series['loss_count'].iloc[-1])
 
-#    def __getGameframe__(self):
-#        self.gameframe = self.__request_gameframe__()
+        df_series = df_series[[
+            'season',
+            'week',
+            'season_type',#
+            'series_team',#
+            'series_opponent',#
+            'team_pts',#
+            'opponent_pts',#
+            'winner',#
+            'team_venue'#
+        ]]
 
-#    def __getGameWkInfo__(self):
-#        #add properties for:
-#        self.weekframe = self.gameframe[(self.gameframe['week']==self.game_wk) & (self.gameframe['year']==self.game_yr)].iloc[-1]
-#
-#        self.start_time = self.weekframe['start_time']
-#        self.opponent = self.weekframe['opponent']
-#        self.team_side = self.weekframe['team_side']
-#        self.team_pts = self.weekframe['team_pts']
-#        self.opponent_pts = self.weekframe['opponent_pts']
-#        self.winner = self.weekframe['winner']
-#        self.team_win = self.weekframe['team_win']
-#        self.win_by = self.weekframe['win_by']
-#        self.pts_diff = self.weekframe['pts_diff']
-
-    def __findLastCompletedGameInfo__(self):
-        self.lastcompletedgameinfoframe = self.gameframe[~self.gameframe['pts_diff'].isna()].iloc[-1]
-        self.lcg_team = self.team1
-        self.lcg_opponent = self.lastcompletedgameinfoframe['opponent']
-        self.lcg_winner = self.lastcompletedgameinfoframe['winner']
-        self.lcg_team_pts = self.lastcompletedgameinfoframe['team_pts']
-        self.lcg_opponent_pts = self.lastcompletedgameinfoframe['opponent_pts']
-        self.lcg_win_by = self.lastcompletedgameinfoframe['win_by']
-        self.lcg_week = self.lastcompletedgameinfoframe['week']
-
-#    def __findNextGameInfo__(self):
-#        self.lastcompletedgameinfoframe = self.gameframe[~self.gameframe['pts_diff'].isna()].iloc[-1]
-#        self.lcg_week = self.lastcompletedgameinfoframe['week']
-#        self.nextgameinfoframe = self.gameframe[(self.gameframe['year']==self.game_yr) & (self.gameframe['week']==self.lcg_week+1)].iloc[-1]
-
-    def __findSeriesRangeRecordSummary__(self):
-        self.seriesrangerecordsummaryframe = self.seriesrangerecordframe[['year','week','venue','team_pts','opponent_pts','winner','team_win','win_by']]
-        self.seriesrangerecordsummaryframe['team_win_bool'] = np.where(self.seriesrangerecordsummaryframe['team_win']=='X',1,0)
-        self.seriesrangerecordsummary_wins = self.seriesrangerecordsummaryframe['team_win_bool'].sum()
-        self.seriesrangerecordsummary_total = self.seriesrangerecordsummaryframe['team_win_bool'].count()
-        self.seriesrangerecordsummary_losses = self.seriesrangerecordsummary_total - self.seriesrangerecordsummary_wins
-        self.seriesrangerecordsummary = str(self.seriesrangerecordsummary_wins) + '-' + str(self.seriesrangerecordsummary_losses)
-
-        self.seriesrangerecordsummaryframe.drop(['team_win_bool'], axis=1, inplace=True)
+        
+        return win_loss_record, df_series
+        
+        
 
 
-    def __findSeriesRangeRecord__(self, opponent):
-        self.seriesrangerecordframe = self.gameframe[(self.gameframe['opponent']==opponent) & (self.gameframe['team_pts'] >= 0)]
-        self.__findSeriesRangeRecordSummary__()
-
-    def __summarizeOpponentRecord__(self, opponent, year_list):
-        self.opponentrecordframe = cfb_func.get_opponent_record_frame(opponent, year_list)
-
-    def __summarizeTeamRecord__(self, year_list):
-        self.teamrecordframe = cfb_func.get_team_record_frame(self.team1, year_list)
-
+        
+        
+        
+        
+        
+    #needs rewrite:
     def __combineSeriesAndRecordInfo__(self):
         #combine:
         # self.seriesrangerecordsummary (year is key to join on)
@@ -373,30 +502,9 @@ class Schedule(Base):
         self.__TeamListRecordsByYear__()
         
         
+
         
         
-        
-    def get_gameframe(self):
-        self.__getGameframe__()
-
-    def get_game_wk_info(self):
-        self.__getGameWkInfo__()
-
-    def find_last_completed_game_info(self):
-        self.__findLastCompletedGameInfo__()
-
-    def find_next_game_info(self):
-        self.__findNextGameInfo__()
-
-    def find_series_range_record(self, opponent):
-        #self.__findNextGameInfo__()
-        self.__findSeriesRangeRecord__(opponent)
-
-    def summarize_opponent_record(self, opponent, year_list):
-        self.__summarizeOpponentRecord__(opponent, year_list)
-
-    def summarize_team_record(self, year_list):
-        self.__summarizeTeamRecord__(year_list)
-
+    #needs rewrite:
     def combine_series_and_record_info(self):
         self.__combineSeriesAndRecordInfo__()

@@ -41,8 +41,6 @@ mySchedule = cfb_data.Schedule(5, team_list)
 # show the class status log
 #mySchedule.show_status()
 
-# pull historical schedule data for watched teams
-mySchedule.team_records_by_year()
 
 # as example, show sched info for the first item from the team list
 for i in range(len(mySchedule.html_next_game_info)):
@@ -54,9 +52,15 @@ for i in range(len(mySchedule.html_next_game_info)):
     print(mySchedule.html_last_game_info[i])
     print('\n<br><br>\n')
 
+#Print to screen: Team record information for UGA, 2018 season
+team_year_record_str, team_year_schedule_df = mySchedule.__FindTeamRecordByYear__('Georgia',2018)
+print(team_year_record_str)
+print(team_year_schedule_df)
 
-
-
+#Print to screen: Series record information for num_past_years when Wake has played Florida State
+recent_series_record_str, recent_series_schedule_df = mySchedule.__FindTeamVsOpponentRecentSeriesRecord__('Wake Forest','Florida State')
+print(recent_series_record_str)
+print(recent_series_schedule_df)
 
 
 

@@ -35,9 +35,14 @@ to_zone = tz.tzlocal() #Used for converting to local timezone
 
 
 def get_full_year_schedule_all_teams(year):
-    r = requests.get('https://api.collegefootballdata.com/games?year=' + str(year)).json()
+    r = requests.get(
+        'https://api.collegefootballdata.com/games?year=' + str(year) + \
+        '&seasonType=both'
+    ).json()
 
     df = pd.DataFrame(r)
+    
+    df = df.sort_values(by=['season','season_type','week'], ascending=[True,False,True])
     
     df['start_time_dt'] = pd.to_datetime(df['start_date'].values, format=api_mask, utc=True).tz_convert(to_zone)
     df['start_time_str'] = pd.to_datetime(df['start_date'].values, format=api_mask, utc=True).tz_convert(to_zone).strftime(readable_mask)
