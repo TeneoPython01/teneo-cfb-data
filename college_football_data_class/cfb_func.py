@@ -6,6 +6,7 @@
 # Last Updated:     09/21/2019
 # Version History:  [v01 09/02/2019] Prototype to get schedule and record info
 #                   [v02 09/21/2019] Rewrite for increased efficiency
+#                   [v03 09/25/2019] Rewrite completed
 #
 # Purpose:          This script is used by the college_football_data_class
 #                   module for various functions
@@ -14,6 +15,7 @@
 #
 # Dev Backlog:      1) Rewrite code for added efficiency
 #                   2) Add comments
+#                   3) Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
 
 import pandas as pd #to handle data in pandas dataframes
 pd.set_option('display.max_rows', 500) #allow printing lots of rows to screen
@@ -56,103 +58,66 @@ def get_current_year():
     return int(dt.datetime.now().year)
 
 
-# Original prototype function; deprecated; will be rewritten
-# Returns the opponent of a particular game
-def get_opponent(team1, game_yr, game_wk):
+def df_to_html(df, style_type=1, my_title=''):
 
-  r = requests.get('https://api.collegefootballdata.com/games?year=' +
-                   str(game_yr) + '&week=' +
-                   str(game_wk) + '&team=' +
-                   team1).json()
+    #only one style type so far, but if future types are built
+    #then an if/elif stmt could be used to handle.
+    if style_type == 1:
+        pass
+    
+    html_script = """
+    <!DOCTYPE html>
+    <HTML>
+        <HEAD>
+    """
+    
+    html_title = '\t\t\t' + '<TITLE>' + my_title + '</TITLE>'
+    
+    html_script = html_script + '\n' + html_title
+    
+    css_style = """
+    <!-- CSS goes in the document HEAD or added to your external stylesheet -->
+    <style type="text/css">
+    table.gridtable {
+        font-family: verdana,arial,sans-serif;
+        font-size:11px;
+        border-width: 1px;
+        border-color: #666666;
+        border-collapse: collapse;
+    }
+    table.gridtable th{
+        border-width: 1px;
+        padding: 18px;
+        border-style: solid;
+        border-color: #666666;
+        background-color: #dedede;
+    }
+    table.gridtable td{
+        border-width: 1px;
+        padding: 6px;
+        border-style: solid;
+        border-color: #666666;
+        background-color: #ffffff;
+    }
+    /* Define the default color for all the table rows */
+    .gridtable tr{
+        background: #b8d1f3;
+    }
+    /* Define the hover highlight color for the table row */
+    .gridtable td:hover {
+        background-color: #ffff99;
+    }
 
-  df = pd.DataFrame(r)
+    </style>
+    """
 
-  df['opponent'] = np.where(team1==df['home_team'],df['away_team'],df['home_team'])
+    html_script = html_script + '\n' + css_style + '\n' + '</HEAD>'
 
-  opponent = df.iloc[-1, df.columns.get_loc('opponent')]
+    html_table = df.to_html(index=False).replace(
+        '<table border="1" class="dataframe">',
+        '<table class="gridtable"'
+    )
+    
+    html_script = html_script + '\n' + html_table + '\n' + '</BODY> </HTML>'
 
-  return opponent
-
-
-
-# Original prototype function; deprecated; will be rewritten
-# Returns the full schedule for a given team and year range
-# note that week is not used
-def get_gameframe(team1, game_yr, num_past_years, game_wk):
-
-  df = pd.DataFrame()
-
-  for item_yr in range(game_yr-num_past_years, game_yr+1):
-    for wk in range(1,20):
-      r = requests.get('https://api.collegefootballdata.com/games?year=' +
-                       str(item_yr) + '&week=' +
-                       str(wk) + '&team=' +
-                       team1).json()
-
-      df = df.append(pd.DataFrame(r))
-
-      if 'start_time' not in df:
-          df['start_time'] = dt.datetime.strptime(df['start_date'].iloc[-1],api_mask).replace(tzinfo=from_zone).astimezone(to_zone).strftime(readable_mask)
-      else:
-          df.iloc[-1, df.columns.get_loc('start_time')] = dt.datetime.strptime(df['start_date'].iloc[-1],api_mask).replace(tzinfo=from_zone).astimezone(to_zone).strftime(readable_mask)
-
-      if 'year' not in df:
-          df['year'] = int(dt.datetime.strptime(df['start_date'].iloc[-1],api_mask).replace(tzinfo=from_zone).astimezone(to_zone).strftime(year_mask))
-      else:
-          df.iloc[-1, df.columns.get_loc('year')] = int(dt.datetime.strptime(df['start_date'].iloc[-1],api_mask).replace(tzinfo=from_zone).astimezone(to_zone).strftime(year_mask))
-
-  df['year'] = pd.to_numeric(df['year'], downcast='integer')
-  df['opponent'] = np.where(team1==df['home_team'],df['away_team'],df['home_team'])
-  df['team_side'] = np.where(team1==df['home_team'],'home','away')
-  df['team_pts'] = np.where(team1==df['home_team'],df['home_points'],df['away_points'])
-  df['opponent_pts'] = np.where(team1==df['home_team'],df['away_points'],df['home_points'])
-  df['winner'] = np.where(df['team_pts']>df['opponent_pts'],team1,df['opponent'])
-  df['team_win'] = np.where(df['team_pts']>df['opponent_pts'],'X','')
-  df['win_by'] = np.where(df['team_pts']>df['opponent_pts'],df['team_pts']-df['opponent_pts'],df['opponent_pts']-df['team_pts'])
-  df['pts_diff'] = df['team_pts'] - df['opponent_pts']
-
-
-  return df
-
-
-
-
-
-# Original prototype function; deprecated; will be rewritten
-# Returns a df with a team's win/loss record for a given year
-def get_opponent_record_frame(opponent, year_list):
-  df = pd.DataFrame()
-
-  for item_year in year_list:
-    df = df.append(get_gameframe(opponent, item_year, 0, 0))
-
-  df_summary = df[['year','team_win']]
-  df_summary['team_win_bool'] = np.where(df_summary['team_win']=='X',1,0)
-  df_summary = df_summary[['year','team_win_bool']]
-  df_summary['game_count'] = df_summary.groupby('year')['team_win_bool'].count().iloc[-1]
-  df_summary['win_count'] = df_summary.groupby('year')['team_win_bool'].sum().iloc[-1]
-  df_summary['loss_count'] = df_summary['game_count'] - df_summary['win_count']
-                   
-  return df_summary
-
-
-
-
-
-
-# Original prototype function; deprecated; will be rewritten
-# Returns a df with a team's win/loss record for a given year
-def get_team_record_frame(team1, year_list):
-  df = pd.DataFrame()
-
-  for item_year in year_list:
-    df = df.append(get_gameframe(team1, item_year, 0, 0))
-
-  df_summary = df[['year','team_win']]
-  df_summary['team_win_bool'] = np.where(df_summary['team_win']=='X',1,0)
-  df_summary = df_summary[['year','team_win_bool']]
-  df_summary['game_count'] = df_summary.groupby('year')['team_win_bool'].count().iloc[-1]
-  df_summary['win_count'] = df_summary.groupby('year')['team_win_bool'].sum().iloc[-1]
-  df_summary['loss_count'] = df_summary['game_count'] - df_summary['win_count']
-                   
-  return df_summary
+    return html_script

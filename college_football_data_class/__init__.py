@@ -2,9 +2,10 @@
 #
 # Author(s):        BDT
 # Developed:        09/02/2019
-# Last Updated:     09/21/2019
+# Last Updated:     09/25/2019
 # Version History:  [v01 09/02/2019] Prototype to get schedule and record info
 #                   [v02 09/21/2019] Rewrite for increased efficiency
+#                   [v03 09/25/2019] Rewrite completed
 #
 # Purpose:          This script is used to establish the class objects
 #
@@ -14,6 +15,7 @@
 #                   2) Add comments
 #                   3) Build record history for each team by year and for each team vs next opponent 
 #                      series over num_past_years
+#                   4) Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
 
 # import cfb_func with custom path
 import sys, os
@@ -25,9 +27,7 @@ import numpy as np
 
 import pandas as pd
 
-
-# protected properties, functions, and methods within the Base class
-class Base(object):
+class Schedule(object):
 
     #__init__() "MAGIC METHOD" CREATES:
     #   self.current_status AS STR
@@ -36,42 +36,44 @@ class Base(object):
     #   self.current_year AS INT
     def __init__(self, num_past_years, team_list):
         self.current_status = 'STATUS INFOMATION LOG BEGIN'
-        self.__SetStatusMessage__('Initializing class')
+        self.__SetStatusMessage('Initializing class')
         self.num_past_years = num_past_years
         self.team_list = team_list
 
-        self.__SetStatusMessage__('Finding current year based on system date')
+        self.__SetStatusMessage('Finding current year based on system date')
         self.current_year = cfb_func.get_current_year()
 
-        self.__SetStatusMessage__('Getting schedule information for last ' 
+        self.__SetStatusMessage('Getting schedule information for last ' 
                               + str(self.num_past_years) + ' years')
-        self.__GetMultiYearScheduleAllTeams__()
+        self.GetMultiYearScheduleAllTeams()
    
     #METHOD APPENDS self.current_status WITH NEW MESSAGE STRING
-    def __SetStatusMessage__(self, msg=""):
+    #DUNDER PREFIX (__) MANGLES THE FUNCTION FOR PRIVATE
+    #MODULE USE ONLY
+    def __SetStatusMessage(self, msg=""):
         self.current_status = self.current_status + '; \n' + msg
     
-    #METHOD DISPLAYS self.current_status WHICH IS STRING
-    def __ShowStatus__(self):
-        print(self.current_status)
+    #FUNCTION RETURNS self.current_status WHICH IS STRING
+    def ShowStatus(self):
+        return self.current_status
 
     #METHOD CREATES self.df_multi_yr_schedule_all_teams AS PANDAS DATAFRAME
     #   AND CREATES self.team_schedule_frame_list[team_list_index] AS LIST
     #   AND CREATES self.html_next_game_info[team_list_index] AS LIST
     #   AND CREATES self.html_last_game_info[team_list_index] AS LIST
     #   WHERE team_list_index IS THE INDEX OF THE TEAM FROM self.team_list[]
-    def __GetMultiYearScheduleAllTeams__(self):
+    def GetMultiYearScheduleAllTeams(self):
 
         self.df_multi_yr_schedule_all_teams = pd.DataFrame()
 
         for year_item in range(self.current_year-self.num_past_years+1, self.current_year+1):
 
-            self.__SetStatusMessage__('Getting schedule for year = ' + str(year_item))
+            self.__SetStatusMessage('Getting schedule for year = ' + str(year_item))
             self.df_multi_yr_schedule_all_teams = self.df_multi_yr_schedule_all_teams.append(
                 cfb_func.get_full_year_schedule_all_teams(year_item)
             )
         
-        self.__SetStatusMessage__('Received all year schedules in year range provided')
+        self.__SetStatusMessage('Received all year schedules in year range provided')
 
         self.df_multi_yr_schedule_all_teams['on_team_watch_list'] = np.where(
             (self.df_multi_yr_schedule_all_teams['home_team'].isin(self.team_list)) 
@@ -79,7 +81,7 @@ class Base(object):
             1,
             None
         )
-        self.__SetStatusMessage__('Flagged games involving teams on the watch list')
+        self.__SetStatusMessage('Flagged games involving teams on the watch list')
 
         #initialize the list that will hold the team schedule dfs
         self.team_schedule_frame_list = []
@@ -267,7 +269,12 @@ class Base(object):
         
     #FUNCTION RETURNS WIN-LOSS RECORD FOR A GIVEN TEAM AND SEASON
     #SEASON IS YEAR, MUST BE WITHIN LAST num_past_years YEARS
-    def __FindTeamRecordByYear__(self, record_team, record_year):
+    def FindTeamRecordByYear(self, record_team, record_year):
+
+        #force record_year param into int type (otherwise sometimes
+        #it gets autotyped as str, which causes issues)
+        record_year = int(record_year)
+        
         #create a df to hold the team records
         df_record = pd.DataFrame()
         df_record = self.df_multi_yr_schedule_all_teams.copy()
@@ -305,6 +312,16 @@ class Base(object):
             1,
             0
         )
+        df_record['winner'] = np.where(
+            df_record['home_points'] > df_record['away_points'],
+            df_record['home_team'],
+            df_record['away_team']
+        )
+        df_record['team_venue'] = np.where(
+            df_record['home_team'] == record_team,
+            'Home',
+            'Away'
+        )
             
         df_record = df_record[
             (
@@ -323,14 +340,25 @@ class Base(object):
         
         win_loss_record = str(df_record['win_count'].iloc[-1]) + '-' + str(df_record['loss_count'].iloc[-1])
 
-        df_record.drop(['game_count', 'win_count', 'loss_count'], axis=1, inplace=True)
+        #df_record.drop(['game_count', 'win_count', 'loss_count'], axis=1, inplace=True)
+        df_record = df_record[[
+            'season',
+            'week',
+            'season_type',
+            #'series_team',
+            #'series_opponent',
+            'team_pts',
+            'opponent_pts',
+            'winner',
+            'team_venue'
+        ]]
         
         return win_loss_record, df_record
 
     #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE INFO FOR A GIVEN TEAM-OPPONENT
     #PAIRING OVER THE COURSE OF A SERIES THAT SPANS FROM num_past_years SEASONS
     #AGO UNTIL CURRENT SEASON
-    def __FindTeamVsOpponentRecentSeriesRecord__(self, series_team, series_opponent):
+    def FindTeamVsOpponentRecentSeriesRecord(self, series_team, series_opponent):
         #create a df to hold the series records
         df_series = pd.DataFrame()
         df_series = self.df_multi_yr_schedule_all_teams.copy()
@@ -400,13 +428,13 @@ class Base(object):
         df_series = df_series[[
             'season',
             'week',
-            'season_type',#
-            'series_team',#
-            'series_opponent',#
-            'team_pts',#
-            'opponent_pts',#
-            'winner',#
-            'team_venue',#
+            'season_type',
+            'series_team',
+            'series_opponent',
+            'team_pts',
+            'opponent_pts',
+            'winner',
+            'team_venue',
             'team_win_bool'
         ]]
 
@@ -422,89 +450,105 @@ class Base(object):
         df_series = df_series[[
             'season',
             'week',
-            'season_type',#
-            'series_team',#
-            'series_opponent',#
-            'team_pts',#
-            'opponent_pts',#
-            'winner',#
-            'team_venue'#
+            'season_type',
+            #'series_team',
+            #'series_opponent',
+            'team_pts',
+            'opponent_pts',
+            'winner',
+            'team_venue'
         ]]
-
         
-        return win_loss_record, df_series
+        df_series['team_yr_rec'] = ''
+        df_series['opp_yr_rec'] = ''
+        new_df_series = pd.DataFrame()
         
+        for index, row in df_series.iterrows():
+            row['team_yr_rec'] = str(self.FindTeamRecordByYear(series_team, row['season'])[0])
+            row['opp_yr_rec'] = str(self.FindTeamRecordByYear(series_opponent, row['season'])[0])
+            new_df_series = new_df_series.append(row)
+
+        new_df_series = new_df_series[
+            [
+                'season',
+                'week',
+                'season_type',
+                'team_pts',
+                'opponent_pts',
+                'winner',
+                'team_venue',
+                'team_yr_rec',
+                'opp_yr_rec'
+            ]
+        ]
+
+        new_df_series['season'] = pd.to_numeric(new_df_series['season'], downcast='integer')
+        new_df_series['week'] = pd.to_numeric(new_df_series['week'], downcast='integer')
+        new_df_series['team_pts'] = pd.to_numeric(new_df_series['team_pts'], downcast='integer')
+        new_df_series['opponent_pts'] = pd.to_numeric(new_df_series['opponent_pts'], downcast='integer')
         
+        return win_loss_record, new_df_series
 
+    def df_to_html(self, df, style_type=1, my_title=''):
 
-        
-        
-        
-        
-        
-    #needs rewrite:
-    def __combineSeriesAndRecordInfo__(self):
-        #combine:
-        # self.seriesrangerecordsummary (year is key to join on)
-        # self.opponentrecordframe (need to summarize to win-loss by year format)
-        # self.teamrecordframe (need to summarize to win-loss by year format)
+        #only one style type so far, but if future types are built
+        #then an if/elif stmt could be used to handle.
+        if style_type == 1:
+            pass
 
-        self.seriesandrecordframe = self.seriesrangerecordsummaryframe
+        html_script = """
+        <!DOCTYPE html>
+        <HTML>
+            <HEAD>
+        """
 
-        df_temp1_win = self.opponentrecordframe.groupby('year')['team_win_bool'].sum().reset_index()
-        df_temp1_loss = self.opponentrecordframe.groupby('year')['game_count'].mean().reset_index()
-        df_temp1_rec = df_temp1_win.merge(df_temp1_loss, how='inner', on='year')
+        html_title = '\t\t\t' + '<TITLE>' + my_title + '</TITLE>'
 
-        df_temp1_rec['win_count'] = df_temp1_rec['team_win_bool']
-        df_temp1_rec['loss_count'] = df_temp1_rec['game_count'] - df_temp1_rec['win_count']
-        df_temp1_rec['opp_rec'] = df_temp1_rec['win_count'].astype('str') + '-' + df_temp1_rec['loss_count'].astype('str')
-        df_temp1_rec = df_temp1_rec[['year','opp_rec']]
+        html_script = html_script + '\n' + html_title
 
-        #print(df_temp1_rec)
+        css_style = """
+        <!-- CSS goes in the document HEAD or added to your external stylesheet -->
+        <style type="text/css">
+        table.gridtable {
+            font-family: verdana,arial,sans-serif;
+            font-size:11px;
+            border-width: 1px;
+            border-color: #666666;
+            border-collapse: collapse;
+        }
+        table.gridtable th{
+            border-width: 1px;
+            padding: 18px;
+            border-style: solid;
+            border-color: #666666;
+            background-color: #dedede;
+        }
+        table.gridtable td{
+            border-width: 1px;
+            padding: 6px;
+            border-style: solid;
+            border-color: #666666;
+            background-color: #ffffff;
+        }
+        /* Define the default color for all the table rows */
+        .gridtable tr{
+            background: #b8d1f3;
+        }
+        /* Define the hover highlight color for the table row */
+        .gridtable td:hover {
+            background-color: #ffff99;
+        }
 
-        df_temp2_win = self.teamrecordframe.groupby('year')['team_win_bool'].sum().reset_index()
-        df_temp2_loss = self.teamrecordframe.groupby('year')['game_count'].mean().reset_index()
-        df_temp2_rec = df_temp2_win.merge(df_temp2_loss, how='inner', on='year')
+        </style>
+        """
 
-        df_temp2_rec['win_count'] = df_temp2_rec['team_win_bool']
-        df_temp2_rec['loss_count'] = df_temp2_rec['game_count'] - df_temp2_rec['win_count']
-        df_temp2_rec['team_rec'] = df_temp2_rec['win_count'].astype('str') + '-' + df_temp2_rec['loss_count'].astype('str')
-        df_temp2_rec = df_temp2_rec[['year','team_rec']]
+        html_script = html_script + '\n' + css_style + '\n' + '</HEAD>'
 
-        #print(df_temp2_rec)
+        html_table = df.to_html(index=False).replace(
+            '<table border="1" class="dataframe">',
+            '<table class="gridtable"'
+        )
 
-        df3_temp = self.seriesandrecordframe.merge(df_temp1_rec, how='inner', on='year', suffixes=('_l',''))
-        df3_temp = df3_temp.merge(df_temp2_rec, how='inner', on='year', suffixes=('_l',''))
+        html_script = html_script + '\n' + html_table + '\n' + '</BODY> </HTML>'
 
-        #df3_temp.drop(['opp_rec_l', 'team_rec_l'], axis=1, inplace=True)
-
-        #self.seriesandrecordframe = self.seriesandrecordframe.merge(df_temp1_rec, how='inner', on='year')
-        #self.seriesandrecordframe = self.seriesandrecordframe.merge(df_temp2_rec, how='inner', on='year')
-        self.seriesandrecordframe = df3_temp
-
-
-
-
-    
-# this is the class used by the user, which instanciates a Base() class for protection
-class Schedule(Base):
-
-    def __init__(self, num_past_years=0, team_list=[]):
-        super(Schedule, self).__init__(num_past_years, team_list)
-
-    def get_multi_year_schedule_all_teams(self):
-        self.__GetMultiYearScheduleAllTeams__()
-
-    def show_status(self):
-        self.__ShowStatus__()
-        
-    def team_records_by_year(self):
-        self.__TeamListRecordsByYear__()
-        
-        
-
-        
-        
-    #needs rewrite:
-    def combine_series_and_record_info(self):
-        self.__combineSeriesAndRecordInfo__()
+        return html_script
