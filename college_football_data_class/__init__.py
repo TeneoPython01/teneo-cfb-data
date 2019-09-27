@@ -489,66 +489,26 @@ class Schedule(object):
         
         return win_loss_record, new_df_series
 
-    def df_to_html(self, df, style_type=1, my_title=''):
+    def df_to_html(self, my_title, df_or_df_list, df_description_or_list):
+        
+        if type(df_or_df_list) is not list:
+            df_or_df_list = [ df_or_df_list ]
 
-        #only one style type so far, but if future types are built
-        #then an if/elif stmt could be used to handle.
-        if style_type == 1:
-            pass
+        if type(df_description_or_list) is not list:
+            df_description_or_list = [ df_description_or_list ]
+           
+        loop_count = 0
+        
+        html_script = ''
+        html_script = html_script + cfb_func.html_header(my_title)
+        html_script = html_script + cfb_func.html_style_header()
 
-        html_script = """
-        <!DOCTYPE html>
-        <HTML>
-            <HEAD>
-        """
-
-        html_title = '\t\t\t' + '<TITLE>' + my_title + '</TITLE>'
-
-        html_script = html_script + '\n' + html_title
-
-        css_style = """
-        <!-- CSS goes in the document HEAD or added to your external stylesheet -->
-        <style type="text/css">
-        table.gridtable {
-            font-family: verdana,arial,sans-serif;
-            font-size:11px;
-            border-width: 1px;
-            border-color: #666666;
-            border-collapse: collapse;
-        }
-        table.gridtable th{
-            border-width: 1px;
-            padding: 18px;
-            border-style: solid;
-            border-color: #666666;
-            background-color: #dedede;
-        }
-        table.gridtable td{
-            border-width: 1px;
-            padding: 6px;
-            border-style: solid;
-            border-color: #666666;
-            background-color: #ffffff;
-        }
-        /* Define the default color for all the table rows */
-        .gridtable tr{
-            background: #b8d1f3;
-        }
-        /* Define the hover highlight color for the table row */
-        .gridtable td:hover {
-            background-color: #ffff99;
-        }
-
-        </style>
-        """
-
-        html_script = html_script + '\n' + css_style + '\n' + '</HEAD>'
-
-        html_table = df.to_html(index=False).replace(
-            '<table border="1" class="dataframe">',
-            '<table class="gridtable"'
-        )
-
-        html_script = html_script + '\n' + html_table + '\n' + '</BODY> </HTML>'
+        for df_item in df_or_df_list:
+            html_script = html_script + '<H3><B><U>' + df_description_or_list[loop_count] + ':</B></U></H3><BR>\n'
+            html_script = html_script + cfb_func.html_from_df(df_item)
+            html_script = html_script + '\n\n<BR><BR>\n\n'
+            loop_count = loop_count + 1
+        
+        html_script = html_script + cfb_func.html_footer()
 
         return html_script

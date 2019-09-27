@@ -58,24 +58,22 @@ def get_current_year():
     return int(dt.datetime.now().year)
 
 
-def df_to_html(df, style_type=1, my_title=''):
-
-    #only one style type so far, but if future types are built
-    #then an if/elif stmt could be used to handle.
-    if style_type == 1:
-        pass
-    
+def html_header(my_title=''):
     html_script = """
     <!DOCTYPE html>
     <HTML>
         <HEAD>
-    """
+            <TITLE>"""
     
-    html_title = '\t\t\t' + '<TITLE>' + my_title + '</TITLE>'
+    html_title = my_title + '</TITLE>'
     
-    html_script = html_script + '\n' + html_title
+    html_script = html_script + '\n' + html_title    
     
-    css_style = """
+    return html_script
+
+def html_style_header():
+
+    html_script = """
     <!-- CSS goes in the document HEAD or added to your external stylesheet -->
     <style type="text/css">
     table.gridtable {
@@ -109,15 +107,35 @@ def df_to_html(df, style_type=1, my_title=''):
     }
 
     </style>
+    </HEAD>
     """
+    
+    return html_script
 
-    html_script = html_script + '\n' + css_style + '\n' + '</HEAD>'
+def html_from_df(df):
 
-    html_table = df.to_html(index=False).replace(
+    html_script = df.to_html(index=False).replace(
         '<table border="1" class="dataframe">',
-        '<table class="gridtable"'
+        '<table class="gridtable">'
     )
     
-    html_script = html_script + '\n' + html_table + '\n' + '</BODY> </HTML>'
+    return html_script
 
+def html_footer():
+
+    html_script = """
+    </BODY>
+    </HTML>
+    """
+    
+    return html_script
+
+def df_to_html(my_title, df):
+
+    html_script = ''
+    html_script = html_script + html_header(my_title)
+    html_script = html_script + html_style_header()
+    html_script = html_script + html_from_df(df)
+    html_script = html_script + html_footer()
+    
     return html_script

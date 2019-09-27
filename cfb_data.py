@@ -11,20 +11,21 @@
 #
 # Special Notes:    Requires college_football_data_class module
 #
-# Dev Backlog:      1) Rewrite code for added efficiency
+# Dev Backlog:      
+#                   X--Rewrite code for added efficiency
 #                   2) Add comments
-#                   3) Incorporate better handling for deprecation and other warnings
+#                   X--Incorporate better handling for deprecation and other warnings
 #                   4) Research importing all dependencies via module
 #                   5) Add support for config.ini to pull u/n and pass for sending email
 #                      and leverage git ignore list to prevent uploading credentials
 #                      to github
 #                   6) Install and leverage a local database for ingestion instead of
 #                      dataframes in local memory
-#                   7) Write function for following: When converting df.to_html(), use
+#                   X--Write function for following: When converting df.to_html(), use
 #                      string handling to incorporate <style> tags for better display
-#                   8) Trigger team_records_by_year() upon __init__() but handle cases
-#                      where team_list is empty to prevent index error on [0]
-#                   9) Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
+#                   X--Trigger team_records_by_year() upon __init__()
+#                   9) handle cases where team_list is empty to prevent index error on [0]
+#                   X--Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
 
 
 # import dependencies
@@ -44,21 +45,51 @@ mySchedule = cfb_data.Schedule(5, team_list)
 #mySchedule.show_status()
 
 
-# as example, show sched info for the first item from the team list
-for i in range(len(mySchedule.html_next_game_info)):
-    print('NEXT GAME SCHEDULED FOR ' + mySchedule.team_schedule_frame_list[i]['my_team'].iloc[0])
-    print(mySchedule.html_next_game_info[i])
-    print('\n<br><br>\n')
+# display schedule information for the watchlist
+df_list = []
+description_list = []
 
-    print('LAST GAME RESULTS FOR ' + mySchedule.team_schedule_frame_list[i]['my_team'].iloc[0])
-    print(mySchedule.html_last_game_info[i])
-    print('\n<br><br>\n')
+#PULL SCHEDULE INFORMATION FOR UPCOMING WATCHLIST GAMES
+for i in range(0,len(mySchedule.team_schedule_frame_list)):
+    df_list.append(
+        mySchedule.team_schedule_frame_list[i][
+            (mySchedule.team_schedule_frame_list[i]['is_next_game_bool']==1)
+        ].copy()
+    )
+    description_list.append(
+        'Next upcoming game scheduled for ' + str(df_list[-1]['my_team'].iloc[0])
+    )
 
-#Print to screen: Team record information for UGA, 2018 season
-team_year_schedule_df = mySchedule.FindTeamRecordByYear('Georgia',2018)[1]
-print(mySchedule.df_to_html(team_year_schedule_df, 1))
+#PULL RESULTS INFORMATION FOR MOST RECENTLY COMPLETED WATCHLIST GAMES
+for i in range(0,len(mySchedule.team_schedule_frame_list)):
+    df_list.append(
+        mySchedule.team_schedule_frame_list[i][
+            (mySchedule.team_schedule_frame_list[i]['is_last_game_bool']==1)
+        ].copy()
+    )
+    description_list.append(
+        'Most recently completed game results for ' + str(df_list[-1]['my_team'].iloc[0])
+    )
 
-#Print to screen: Series record information for num_past_years when Wake has played Florida State
-recent_series_schedule_df = mySchedule.FindTeamVsOpponentRecentSeriesRecord('Wake Forest','Florida State')[1]
-print(mySchedule.df_to_html(recent_series_schedule_df, 1))
+#PULL RESULTS INFORMATION FOR ALL COMPLETED IN-SEASON WATCHLIST GAMES
+for i in range(0,len(team_list)):
+    df_list.append(
+        mySchedule.FindTeamRecordByYear(team_list[i],2019)[1].copy()
+    )
+    description_list.append(
+        '2019 completed games list for ' + team_list[i]
+    )
 
+
+#DISPLAY INFO PULLED ABOVE
+#USING HTML WITH CSS STYLE SHEET FORMATTING
+print(
+    """
+    -----------------------------------------------
+    COPY AND PASTE THE FOLLOWING INTO AN .HTML FILE
+    AND LOAD IT WITH A BROWSER:
+    -----------------------------------------------
+    \n\n\n
+    """
+)
+print(mySchedule.df_to_html('This is an original title', df_list, description_list))
