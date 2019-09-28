@@ -22,11 +22,32 @@ import sys, os
 sys.path.append(os.path.dirname(__file__))
 import cfb_func as cfb_func
 
+#import configparser to pull variables from config.ini file
+#note that config.ini is excluded from the repo, but can be
+#built by editing config_template.ini with a text editor
+#and saving in the same directory as config.ini
+import configparser
+
 # import numpy to leverage np.where() for conditional df handling
 import numpy as np
 
 import pandas as pd
 
+#initialize the config parser and read in from config.ini
+config = configparser.ConfigParser()
+config.read('./config/config.ini')
+
+#pull the teams to watch from the config into a list.  the
+#method used requires dropping (pop()) the first value.
+config_team_list = config['SCHEDULE']['teams to watch'].split('\n')
+config_team_list.pop(0)
+
+#pull the number of past years worth of schedule data to pull
+#from the config file
+config_num_past_years = int(config['SCHEDULE']['num past years'])
+
+
+#establish the Schedule class
 class Schedule(object):
 
     #__init__() "MAGIC METHOD" CREATES:
@@ -34,11 +55,13 @@ class Schedule(object):
     #   self.num_past_years AS INT
     #   self.team_list AS LIST
     #   self.current_year AS INT
-    def __init__(self, num_past_years, team_list):
+    def __init__(self):
         self.current_status = 'STATUS INFOMATION LOG BEGIN'
         self.__SetStatusMessage('Initializing class')
-        self.num_past_years = num_past_years
-        self.team_list = team_list
+
+        #set the num_past_years and team_list based on data from config.ini
+        self.num_past_years = config_num_past_years
+        self.team_list = config_team_list
 
         self.__SetStatusMessage('Finding current year based on system date')
         self.current_year = cfb_func.get_current_year()

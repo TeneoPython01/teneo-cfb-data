@@ -33,10 +33,8 @@ import os, sys
 sys.path.append('./college_football_data_class/')
 import college_football_data_class as cfb_data
 
-# define teams to watch and
-# grab the last 5 years of college football schedule information
-team_list = ['Wake Forest', 'Florida State', 'Northwestern']
-mySchedule = cfb_data.Schedule(5, team_list)
+# grab the schedule information defined in config.ini
+mySchedule = cfb_data.Schedule()
 
 # show the schedule frame
 #print(mySchedule.df_multi_yr_schedule_all_teams)
