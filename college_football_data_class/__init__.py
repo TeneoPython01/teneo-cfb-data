@@ -33,6 +33,7 @@ import numpy as np
 
 import pandas as pd
 
+
 #initialize the config parser and read in from config.ini
 config = configparser.ConfigParser()
 config.read('./config/config.ini')
@@ -535,3 +536,16 @@ class Schedule(object):
         html_script = html_script + cfb_func.html_footer()
 
         return html_script
+    
+    def send_schedule_html(self, subject='[Teneo] - CFB Schedule Info', message='Needs body', files=[]):
+        send_from = config['OUTGOING EMAIL']['from']
+        send_to = send_from
+        server = config['OUTGOING EMAIL']['server']
+        port = config['OUTGOING EMAIL']['port']
+        username = config['OUTGOING EMAIL']['username']
+        password = config['OUTGOING EMAIL']['password']
+        use_tls = config['OUTGOING EMAIL']['use_tls']
+        
+        cfb_func.sendmail(send_from, send_to, subject, message, files,
+              server, port, username, password,
+              use_tls)

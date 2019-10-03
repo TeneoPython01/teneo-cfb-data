@@ -26,6 +26,17 @@ import requests #to pull JSON data
 import numpy as np #to do conditional pandas operations
 import datetime as dt #to track datetime stamps
 
+#import email functions
+import smtplib # used to send mail (which can be used for ATT service to send
+               # text messages as well using 10digitnumber@txt.att.net as the
+               # email address)
+import os.path as op # needed to attach images to an email
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
+from email import encoders
+
 from dateutil import tz #for timezone handling with datetime dtypes
 api_mask = '%Y-%m-%dT%H:%M:%S.000Z' #this is the datetime string
                                     #format native to the API
@@ -139,3 +150,31 @@ def df_to_html(my_title, df):
     html_script = html_script + html_footer()
     
     return html_script
+
+def sendmail(send_from, send_to, subject, message, 
+             files=[], server="localhost", port=587, 
+             username='', password='', use_tls=True):
+
+    msg = MIMEMultipart('alternative')
+    msg['From'] = send_from
+    msg['To'] = send_to
+    msg['Date'] = formatdate(localtime=True)
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(message, 'html'))
+
+    for path in files:
+        part = MIMEBase('application', "octet-stream")
+        with open(path, 'rb') as file:
+            part.set_payload(file.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition',
+                        'attachment; filename="{}"'.format(op.basename(path)))
+        msg.attach(part)
+
+    smtp = smtplib.SMTP(server, port)
+    if use_tls:
+        smtp.starttls()
+    smtp.login(username, password)
+    smtp.sendmail(send_from, send_to, msg.as_string())
+    smtp.quit()

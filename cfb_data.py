@@ -26,6 +26,13 @@
 #                   X--Trigger team_records_by_year() upon __init__()
 #                   9) handle cases where team_list is empty to prevent index error on [0]
 #                   X--Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
+#                   10) add historical record for n-years to Next Upcoming Game frame that is sent in email for
+#                       watchlist teams; remove bool cols from same frame; null out Winner for games that
+#                       haven't happened yet, remove winner, pts, etc from same frame; show opponent in
+#                       completed games list frame in email, possibly add historical record to same frame; 
+#                       possibly add historical record to the most recently completed game frame in email.
+#                   11) create method to replace the for() stmts that generate the df_list and
+#                       description list
 
 
 # import dependencies
@@ -70,24 +77,24 @@ for i in range(0,len(mySchedule.team_schedule_frame_list)):
     )
 
 #PULL RESULTS INFORMATION FOR ALL COMPLETED IN-SEASON WATCHLIST GAMES
-for i in range(0,len(team_list)):
+for i in range(0,len(mySchedule.team_list)):
     df_list.append(
-        mySchedule.FindTeamRecordByYear(team_list[i],2019)[1].copy()
+        mySchedule.FindTeamRecordByYear(mySchedule.team_list[i],2019)[1].copy()
     )
     description_list.append(
-        '2019 completed games list for ' + team_list[i]
+        '2019 completed games list for ' + mySchedule.team_list[i]
     )
 
-
-#DISPLAY INFO PULLED ABOVE
-#USING HTML WITH CSS STYLE SHEET FORMATTING
-print(
-    """
-    -----------------------------------------------
-    COPY AND PASTE THE FOLLOWING INTO AN .HTML FILE
-    AND LOAD IT WITH A BROWSER:
-    -----------------------------------------------
-    \n\n\n
-    """
+#send the schedule data via email
+my_message = mySchedule.df_to_html(
+    '[Teneo] Watchlist Schedule Data', 
+    df_list, 
+    description_list
 )
-print(mySchedule.df_to_html('This is an original title', df_list, description_list))
+
+with open("schedule.htm", "w") as text_file:
+    print(my_message, file=text_file)
+
+file_list =  ['./schedule.htm']
+
+mySchedule.send_schedule_html('[Teneo] Watchlist Schedule Data', my_message, file_list)
