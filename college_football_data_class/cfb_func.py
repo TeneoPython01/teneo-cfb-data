@@ -3,19 +3,18 @@
 #
 # Author(s):        BDT
 # Developed:        09/02/2019
-# Last Updated:     09/21/2019
+# Last Updated:     10/04/2019
 # Version History:  [v01 09/02/2019] Prototype to get schedule and record info
 #                   [v02 09/21/2019] Rewrite for increased efficiency
 #                   [v03 09/25/2019] Rewrite completed
+#                   [v04 10/04/2019] SCHEDULING COMPLETED, on to next feature
 #
 # Purpose:          This script is used by the college_football_data_class
 #                   module for various functions
 #
 # Special Notes:    n/a
 #
-# Dev Backlog:      1) Rewrite code for added efficiency
-#                   2) Add comments
-#                   3) Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
+# Dev Backlog:      TBD
 
 import pandas as pd #to handle data in pandas dataframes
 pd.set_option('display.max_rows', 500) #allow printing lots of rows to screen
@@ -25,6 +24,7 @@ pd.set_option('display.width', 1000) #don't wrap lots of columns
 import requests #to pull JSON data
 import numpy as np #to do conditional pandas operations
 import datetime as dt #to track datetime stamps
+global_now = dt.datetime.now()
 
 #import email functions
 import smtplib # used to send mail (which can be used for ATT service to send
@@ -68,6 +68,11 @@ def get_full_year_schedule_all_teams(year):
 def get_current_year():
     return int(dt.datetime.now().year)
 
+def get_current_datetime_int():
+    date_int = global_now.year*10000 + global_now.month*100 + global_now.day
+    time_int = global_now.hour*10000 + global_now.minute*100 + global_now.second
+    date_time_string = str(date_int) + '_' + str(time_int)
+    return date_int, time_int, date_time_string
 
 def html_header(my_title=''):
     html_script = """

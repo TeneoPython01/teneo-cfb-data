@@ -2,20 +2,18 @@
 #
 # Author(s):        BDT
 # Developed:        09/02/2019
-# Last Updated:     09/25/2019
+# Last Updated:     10/04/2019
 # Version History:  [v01 09/02/2019] Prototype to get schedule and record info
 #                   [v02 09/21/2019] Rewrite for increased efficiency
 #                   [v03 09/25/2019] Rewrite completed
+#                   [v04 10/04/2019] SCHEDULING COMPLETED, on to next feature
 #
 # Purpose:          This script is used to establish the class objects
 #
 # Special Notes:    n/a
 #
-# Dev Backlog:      1) Rewrite code for added efficiency
-#                   2) Add comments
-#                   3) Build record history for each team by year and for each team vs next opponent 
-#                      series over num_past_years
-#                   4) Fix handling for HTML conversion of dfs to be more modularized (header, style, table, footer)
+# Dev Backlog:      TBD
+
 
 # import cfb_func with custom path
 import sys, os
@@ -42,6 +40,9 @@ config.read('./config/config.ini')
 #method used requires dropping (pop()) the first value.
 config_team_list = config['SCHEDULE']['teams to watch'].split('\n')
 config_team_list.pop(0)
+if len(config_team_list) == 0:
+    print('!!! NO WATCHLIST TEAMS FOUND IN CONFIG.INI.  ENDING PROGRAM. !!!')
+    exit()
 
 #pull the number of past years worth of schedule data to pull
 #from the config file
@@ -69,7 +70,7 @@ class Schedule(object):
 
         self.__SetStatusMessage('Getting schedule information for last ' 
                               + str(self.num_past_years) + ' years')
-        self.GetMultiYearScheduleAllTeams()
+        self.GetMultiYearScheduleAllTeams() #loads the schedule data
    
     #METHOD APPENDS self.current_status WITH NEW MESSAGE STRING
     #DUNDER PREFIX (__) MANGLES THE FUNCTION FOR PRIVATE
@@ -81,11 +82,25 @@ class Schedule(object):
     def ShowStatus(self):
         return self.current_status
 
-    #METHOD CREATES self.df_multi_yr_schedule_all_teams AS PANDAS DATAFRAME
-    #   AND CREATES self.team_schedule_frame_list[team_list_index] AS LIST
-    #   AND CREATES self.html_next_game_info[team_list_index] AS LIST
-    #   AND CREATES self.html_last_game_info[team_list_index] AS LIST
-    #   WHERE team_list_index IS THE INDEX OF THE TEAM FROM self.team_list[]
+    #METHOD CREATES:
+    # 1) self.df_multi_yr_schedule_all_teams AS PANDAS DATAFRAME which
+    #        holds the schedule for all years in range for every team
+    # 2) self.team_schedule_frame_list[team_list_index] AS LIST which
+    #       contains the schedule for all years for the teams on the
+    #       watch list
+    # 3) self.next_game_list[team_list_index] AS LIST which contains
+    #       information for the next upcoming game for each team on
+    #       the watch list
+    # 4) self.last_game_list[team_list_index] AS LIST which contains
+    #        information for the most recently completed game for each
+    #        team on the watch list
+    # 5) self.prior_matchup_next_opp_list[team_list_index] AS LIST which
+    #       contains information for all historical matchups where a team
+    #       on the watchlist played their next opponent in next_game_list
+    # NOTE: team_list_index IS THE INDEX OF THE TEAM FROM self.team_list[]
+    #
+    # Example uses:
+    #       self.GetMultiYearScheduleAllTeams() #loads the schedule data
     def GetMultiYearScheduleAllTeams(self):
 
         self.df_multi_yr_schedule_all_teams = pd.DataFrame()
@@ -111,9 +126,10 @@ class Schedule(object):
         self.team_schedule_frame_list = []
         
         #initialize the lists that will hold the HTML information
-        self.html_next_game_info = []
-        self.html_last_game_info = []
-        self.html_current_season_info = []
+
+        self.next_game_list = []
+        self.last_game_list = []
+        self.all_prior_matchup_next_opp_list = []
         
         #initialize the for loop counter
         count = 0
@@ -217,7 +233,7 @@ class Schedule(object):
                 1,
                 0
             )
-
+            
             #define the desired columns to be kept
             columns_to_keep = [
                 #'id', 
@@ -253,46 +269,77 @@ class Schedule(object):
                 'is_current_season_bool',
                 'is_last_game_bool',
                 'is_next_game_bool'
+                #'series_record'
             ]
             
             #reduce the current list position's df down to just the desired columns
             self.team_schedule_frame_list[count] = self.team_schedule_frame_list[count][columns_to_keep]
             
             
-            self.html_next_game_info.append('')
-            self.html_next_game_info[count] = self.html_next_game_info[count] + \
-            self.team_schedule_frame_list[count][
-                self.team_schedule_frame_list[count]['is_next_game_bool'] == 1][
-                ['season',
-                 'week',
-                 'start_time_str',
-                 'my_team',
-                 'opponent']
-                ].to_html(index=False).replace('\n','')
+            columns_to_drop = ['team_pts','opponent_pts','winner',
+                               'team_win_bool','is_current_season_bool',
+                               'is_last_game_bool','is_next_game_bool']
+            self.next_game_list.append(pd.DataFrame())
+            self.next_game_list[count] = self.team_schedule_frame_list[count][
+                (self.team_schedule_frame_list[count]['is_next_game_bool']==1)
+            ].copy().drop(
+                columns_to_drop,
+                axis=1,
+                inplace=False
+            )
+            self.next_game_list[count]['series_record'] = self.FindTeamVsOpponentRecentSeriesRecord(
+                self.next_game_list[count]['my_team'].iloc[-1], 
+                self.next_game_list[count]['opponent'].iloc[-1]
+            )[0]
+            
+            columns_to_drop = ['team_pts','opponent_pts','winner',
+                               'team_win_bool','is_current_season_bool',
+                               'is_last_game_bool','is_next_game_bool']
+            self.last_game_list.append(pd.DataFrame())
+            self.last_game_list[count] = self.team_schedule_frame_list[count][
+                (self.team_schedule_frame_list[count]['is_last_game_bool']==1)
+            ].copy().drop(
+                columns_to_drop,
+                axis=1,
+                inplace=False
+            )
+            self.last_game_list[count]['series_record'] = self.FindTeamVsOpponentRecentSeriesRecord(
+                self.last_game_list[count]['my_team'].iloc[-1], 
+                self.last_game_list[count]['opponent'].iloc[-1]
+            )[0]
+            
+            columns_to_drop = ['team_win_bool','is_current_season_bool',
+                               'is_last_game_bool','is_next_game_bool']
+            self.all_prior_matchup_next_opp_list.append(pd.DataFrame())
+            self.all_prior_matchup_next_opp_list[count] = self.team_schedule_frame_list[count][
+                (self.team_schedule_frame_list[count]['team_pts'] >= 0) &
+                (
+                    (
+                        (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['my_team'].iloc[-1]) &
+                        (self.team_schedule_frame_list[count]['opponent']==self.next_game_list[count]['opponent'].iloc[-1]) 
+                    ) |
+                    (
+                        (self.team_schedule_frame_list[count]['opponent']==self.next_game_list[count]['my_team'].iloc[-1]) &
+                        (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['opponent'].iloc[-1]) 
+                    )
+                )
+            ].copy().drop(
+                columns_to_drop,
+                axis=1,
+                inplace=False
+            )
 
             
-            self.html_last_game_info.append('')
-            self.html_last_game_info[count] = self.html_last_game_info[count] + \
-            self.team_schedule_frame_list[count][
-                self.team_schedule_frame_list[count]['is_last_game_bool'] == 1][
-                ['season',
-                 'week',
-                 'season_type',
-                 'start_time_str',
-                 'start_year_int',
-                 'my_team',
-                 'opponent',
-                 'team_pts',
-                 'opponent_pts',
-                 'winner',
-                 'team_venue']
-            ].to_html(index=False).replace('\n','')
 
             #increment the for loop counter
             count = count + 1
         
-    #FUNCTION RETURNS WIN-LOSS RECORD FOR A GIVEN TEAM AND SEASON
-    #SEASON IS YEAR, MUST BE WITHIN LAST num_past_years YEARS
+    #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE FOR A 
+    #GIVEN TEAM AND SEASON
+    #SEASON IS YEAR (INT), MUST BE WITHIN LAST num_past_years YEARS
+    #Example Uses:
+    #       team_record_string = self.FindTeamRecordByYear('Georgia',2017)[0]
+    #       team_record_details_dataframe = self.FindTeamRecordByYear('Georgia',2017)[1]
     def FindTeamRecordByYear(self, record_team, record_year):
 
         #force record_year param into int type (otherwise sometimes
@@ -346,7 +393,18 @@ class Schedule(object):
             'Home',
             'Away'
         )
-            
+        df_record['series_team'] = record_team
+        df_record['series_opponent'] = np.where(
+            df_record['home_team'] == record_team,
+            df_record['away_team'],
+            df_record['home_team']
+        )
+        df_record['series_opponent'] = np.where(
+            df_record['away_team'] == record_team,
+            df_record['home_team'],
+            df_record['away_team']
+        )
+        
         df_record = df_record[
             (
                 (df_record['home_team'] == record_team) |
@@ -369,8 +427,8 @@ class Schedule(object):
             'season',
             'week',
             'season_type',
-            #'series_team',
-            #'series_opponent',
+            'series_team',
+            'series_opponent',
             'team_pts',
             'opponent_pts',
             'winner',
@@ -382,6 +440,9 @@ class Schedule(object):
     #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE INFO FOR A GIVEN TEAM-OPPONENT
     #PAIRING OVER THE COURSE OF A SERIES THAT SPANS FROM num_past_years SEASONS
     #AGO UNTIL CURRENT SEASON
+    # Example Uses:
+    #       series_win_loss_record_string = FindTeamVsOpponentRecentSeriesRecord('Nebraska', 'Northwestern')[0]
+    #       series_win_loss_details_dataframe = FindTeamVsOpponentRecentSeriesRecord('Nebraska', 'Northwestern')[1]
     def FindTeamVsOpponentRecentSeriesRecord(self, series_team, series_opponent):
         #create a df to hold the series records
         df_series = pd.DataFrame()
@@ -513,6 +574,18 @@ class Schedule(object):
         
         return win_loss_record, new_df_series
 
+    #CONVERTS DATAFRAME (OR LIST OF DFs) INTO A SINGLE HTML STRING
+    #TO BETTER DISPLAY TABLES
+    #    my_title: Title of the HTML page
+    #    df_or_df_list: The dataframe (or multiple dataframes in a list)
+    #    df_description_or_list: a string or list of strings that 
+    #        describe each corresponding dataframe
+    # Example Uses:
+    #        my_html_string = df_to_html(
+    #            'A Page Of Tables',
+    #            [homes_a_df, homes_b_df, homes_c_df],
+    #            ['Homes in neighborhood A', 'Homes in neighborhood B', 'Homes in neighborhood C']
+    #        )
     def df_to_html(self, my_title, df_or_df_list, df_description_or_list):
         
         if type(df_or_df_list) is not list:
@@ -537,14 +610,29 @@ class Schedule(object):
 
         return html_script
     
+    #METHOD EMAILS THE SCHEDULE DATA AS HTML
+    #EMAIL SERVER CONNECTION IS DEFINED IN CONFIG.INI
+    # Example Uses:
+    #        self.send_scheudle_html('This is the subject', 'Dear so and so, How are you?', attachment_filename)
     def send_schedule_html(self, subject='[Teneo] - CFB Schedule Info', message='Needs body', files=[]):
         send_from = config['OUTGOING EMAIL']['from']
-        send_to = send_from
+        send_to = config['OUTGOING EMAIL']['to']
         server = config['OUTGOING EMAIL']['server']
         port = config['OUTGOING EMAIL']['port']
         username = config['OUTGOING EMAIL']['username']
         password = config['OUTGOING EMAIL']['password']
         use_tls = config['OUTGOING EMAIL']['use_tls']
+
+        path = config['PATH']['html']
+        filename = 'schedule'
+        filename_timestamp = cfb_func.get_current_datetime_int()[2]
+        filename_extension = '.html'
+        fullpath = path + filename + filename_timestamp + filename_extension
+
+        with open(fullpath, "w") as text_file:
+            print(message, file=text_file)
+
+        files.append(fullpath)
         
         cfb_func.sendmail(send_from, send_to, subject, message, files,
               server, port, username, password,
