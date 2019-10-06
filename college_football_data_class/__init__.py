@@ -48,7 +48,6 @@ if len(config_team_list) == 0:
 #from the config file
 config_num_past_years = int(config['SCHEDULE']['num past years'])
 
-
 #establish the Schedule class
 class Schedule(object):
 
@@ -71,7 +70,7 @@ class Schedule(object):
         self.__SetStatusMessage('Getting schedule information for last ' 
                               + str(self.num_past_years) + ' years')
         self.GetMultiYearScheduleAllTeams() #loads the schedule data
-   
+  
     #METHOD APPENDS self.current_status WITH NEW MESSAGE STRING
     #DUNDER PREFIX (__) MANGLES THE FUNCTION FOR PRIVATE
     #MODULE USE ONLY
@@ -105,13 +104,20 @@ class Schedule(object):
 
         self.df_multi_yr_schedule_all_teams = pd.DataFrame()
 
+        self.all_ranking_data = pd.DataFrame()
+
         for year_item in range(self.current_year-self.num_past_years+1, self.current_year+1):
 
             self.__SetStatusMessage('Getting schedule for year = ' + str(year_item))
             self.df_multi_yr_schedule_all_teams = self.df_multi_yr_schedule_all_teams.append(
                 cfb_func.get_full_year_schedule_all_teams(year_item)
             )
+            self.all_ranking_data = self.all_ranking_data.append(cfb_func.get_rankings_all_weeks(year_item))
         
+        self.current_ranking_data = self.all_ranking_data[
+            (self.all_ranking_data['season_week'] == self.all_ranking_data['season_week'].max())
+        ]
+
         self.__SetStatusMessage('Received all year schedules in year range provided')
 
         self.df_multi_yr_schedule_all_teams['on_team_watch_list'] = np.where(
@@ -292,8 +298,7 @@ class Schedule(object):
                 self.next_game_list[count]['opponent'].iloc[-1]
             )[0]
             
-            columns_to_drop = ['team_pts','opponent_pts','winner',
-                               'team_win_bool','is_current_season_bool',
+            columns_to_drop = ['team_win_bool','is_current_season_bool',
                                'is_last_game_bool','is_next_game_bool']
             self.last_game_list.append(pd.DataFrame())
             self.last_game_list[count] = self.team_schedule_frame_list[count][
@@ -637,3 +642,26 @@ class Schedule(object):
         cfb_func.sendmail(send_from, send_to, subject, message, files,
               server, port, username, password,
               use_tls)
+
+class Rankings(object):
+
+    def __init__(self):
+        #initialize the year
+        self.ranking_year = cfb_func.get_current_year()
+        #initialize the rankings df data
+        self.get_rankings_all_weeks(self.ranking_year)
+    
+    def get_rankings_all_weeks(self, year):
+        self.all_ranking_data = cfb_func.get_rankings_all_weeks(year)
+        self.current_ranking_data = self.all_ranking_data[
+            (self.all_ranking_data['week'] == self.all_ranking_data['week'].max()) &
+            (self.all_ranking_data['season'] == self.all_ranking_data['season'].max())
+        ]
+
+    def get_rankings_for_week(self, year, week):
+        df = self.current_ranking_data = self.ranking_data[
+            (myRankselfings.all_ranking_data['week'] == week)
+        ]
+
+        return df
+

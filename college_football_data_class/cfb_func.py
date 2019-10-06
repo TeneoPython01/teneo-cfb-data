@@ -17,8 +17,8 @@
 # Dev Backlog:      TBD
 
 import pandas as pd #to handle data in pandas dataframes
-pd.set_option('display.max_rows', 500) #allow printing lots of rows to screen
-pd.set_option('display.max_columns', 500) #allow printsin lots of cols to screen
+pd.set_option('display.max_rows', 1000) #allow printing lots of rows to screen
+pd.set_option('display.max_columns', 1000) #allow printsin lots of cols to screen
 pd.set_option('display.width', 1000) #don't wrap lots of columns
 
 import requests #to pull JSON data
@@ -183,3 +183,156 @@ def sendmail(send_from, send_to, subject, message,
     smtp.login(username, password)
     smtp.sendmail(send_from, send_to, msg.as_string())
     smtp.quit()
+
+def get_rankings_all_weeks(year):
+    
+    #pull rankings data from sports-reference.com 
+    #for the given year as large HTML text string
+    r = requests.get(
+        'https://www.sports-reference.com/cfb/years/' + 
+        str(year) + 
+        '-polls.html'
+    ).text
+
+    #load the HTML table data into pandas dataframe
+    df = pd.DataFrame()
+    df = pd.read_html(r)[0]
+
+    #the table repeats the column headers.  Remove 
+    #the repeated headers appearing the table body.
+    #To do this, first first the index values of
+    #the df where this occurs.
+    my_list = list(
+        filter(
+            None, 
+            np.where(
+                df['Date']=='Date',
+                df.index,
+                None
+            )
+        )
+    )
+
+    #drop the index values identified
+    df.drop(my_list, axis=0, inplace=True)
+
+
+    #ranking change is in absolute values, so
+    #recalculate it. to do this, we have to
+    #convert Rk (current ranking) and Prev
+    #(last week's ranking) to numerics. we
+    #also have to handle for teams that go
+    #from unranked to ranked (jump at least
+    #25 positions).
+    df['Prev'] = pd.to_numeric(df['Prev'], errors='coerce').fillna(26).astype(int)
+    df['Rk'] = pd.to_numeric(df['Rk'], errors='coerce').fillna(26).astype(int)
+    df['Chng'] = df['Prev'] - df['Rk']
+    if 'This Week' in df.columns:
+        df.drop('This Week', axis=1, inplace=True)
+
+    #table data stuffs the team and the team record
+    #into a single column.  this code separates
+    #them into two columns.  when record data doesn't
+    #exist (week 1 preseason ranking data) then show
+    #an empty string.
+    split = df["School"].str.split("(", n = 1, expand = True)
+    df['School'] = split[0].str[:-1]
+    df['School Record'] = split[1].str[:-1]
+    df['School Record'] = df['School Record'].fillna('')
+
+    #table data shows the conference including the
+    #subconference. This code separates them into
+    #separate columns.  e.g. ACC and Atlantic vs
+    #Coastal; or SEC East vs West.  When a conference
+    #doesnt have a subconf, show an empty string.
+    split = df["Conf"].str.split("(", n = 1, expand = True)
+    df['Conf'] = split[0].str[:-1]
+    df['Conf Sub'] = split[1].str[:-1]
+    df['Conf Sub'] = df['Conf Sub'].fillna('')
+    
+    #retype week column to integer
+    df['Wk'] = pd.to_numeric(df['Wk'], errors='coerce').astype(int)
+    
+    #rename df columns for usability
+    df = df.rename(
+        columns={
+            'Wk':            'week', 
+            'Date':          'date',
+            'Rk':            'rank',
+            'School':        'team',
+            'Prev':          'prev_rank',
+            'Chng':          'rank_chg',
+            'Conf':          'conf',
+            'School Record': 'record',
+            'Conf Sub':      'sub_conf',
+            'season':        'season'
+        }
+    )
+
+    #set season to the year
+    df['season'] = year
+
+    #set week_type as Preseason, Normal, or Final
+    df['week_type'] = np.where(
+        (df['date'] == 'Final') |
+        (df['date'] == 'Preseason'),
+        df['date'],
+        'Normal'
+    )
+
+    #replace 'Final' and 'Preseason' values to dummy values that will sort well
+    df['date'] = np.where(
+        df['date'] == 'Final',
+        str(year) + '-12-31',
+        df['date']
+    )
+    df['date'] = np.where(
+        df['date'] == 'Preseason',
+        str(year) + '-06-01',
+        df['date']
+    )
+    df['season_week'] = df['season']*100 + df['week']
+
+    #odd situation arose in week 6 of season 2019 where
+    #there were two teams ranked #25. added this line
+    #of code to drop the later indexed item for each
+    #rank position within each season/week group.
+    df = df.drop_duplicates(['rank','week','season'])
+    
+    #arrange the columns in a particular order
+    sorted_cols = [
+        'season',
+        'week',
+        'season_week',
+        'date',
+        'week_type',
+        'team',
+        'rank',
+        'prev_rank',
+        'rank_chg',
+        'conf',
+        'sub_conf',
+        'record',        
+    ]
+    df = df[sorted_cols]
+
+    #type the columns
+    self.all_ranking_data = self.all_ranking_data.astype(
+        {
+            'season': int,
+            'week': int,
+            'season_week':int,
+            'date': str,
+            'week_type': str,
+            'team': str,
+            'rank': int,
+            'prev_rank': int,
+            'rank_chg': int,
+            'conf': str,
+            'sub_conf': str,
+            'record': str
+        }
+    )
+
+    
+    return df
