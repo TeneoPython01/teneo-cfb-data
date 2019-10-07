@@ -12,7 +12,10 @@
 #
 # Special Notes:    n/a
 #
-# Dev Backlog:      TBD
+# Dev Backlog:      1) Functionalize (cfb_func) the determination of a team's
+#                      ranking where team=x, season=y, week=z so that the
+#                      code can show my_team_rank and opponent_rank
+#                   2) ffill() the ranking for a team in a given season
 
 
 # import cfb_func with custom path
@@ -106,13 +109,17 @@ class Schedule(object):
 
         self.all_ranking_data = pd.DataFrame()
 
+        self.temp_df_list = []
+        
         for year_item in range(self.current_year-self.num_past_years+1, self.current_year+1):
 
             self.__SetStatusMessage('Getting schedule for year = ' + str(year_item))
             self.df_multi_yr_schedule_all_teams = self.df_multi_yr_schedule_all_teams.append(
                 cfb_func.get_full_year_schedule_all_teams(year_item)
             )
-            self.all_ranking_data = self.all_ranking_data.append(cfb_func.get_rankings_all_weeks(year_item))
+            self.all_ranking_data = self.all_ranking_data.append(
+                cfb_func.get_rankings_all_weeks(year_item)
+            )
         
         self.current_ranking_data = self.all_ranking_data[
             (self.all_ranking_data['season_week'] == self.all_ranking_data['season_week'].max())
@@ -140,8 +147,11 @@ class Schedule(object):
         #initialize the for loop counter
         count = 0
 
+
+        
         #iterate through the teams in the team watch list
         for team_item in self.team_list:
+            self.temp_df_list.append(pd.DataFrame())
             #append the full all-team multi-year schedule to the list
             self.team_schedule_frame_list.append(self.df_multi_yr_schedule_all_teams.copy())
             
@@ -334,10 +344,25 @@ class Schedule(object):
                 inplace=False
             )
 
-            
+            #df1 = mySchedule.team_schedule_frame_list[counter].copy()
+            #df2 = mySchedule.all_ranking_data[['season','week','team','rank']].copy()
+            self.temp_df_list[count] = self.temp_df_list[count].append(
+                self.team_schedule_frame_list[count].merge(
+                    self.all_ranking_data[['season','week','team','rank']], 
+                    how='left', 
+                    left_on=['season','week','my_team'], 
+                    right_on=['season','week','team'], 
+                    suffixes=('_left', '_right'),
+                )
+            )
+            self.temp_df_list[count] = self.temp_df_list[count].rename(
+                columns={"rank": "my_team_rank"}
+            ).drop('team', axis=1)
 
             #increment the for loop counter
             count = count + 1
+        self.team_schedule_frame_list = self.temp_df_list
+        del self.temp_df_list
         
     #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE FOR A 
     #GIVEN TEAM AND SEASON

@@ -15,6 +15,7 @@
 # Dev Backlog:      1) When showing completed games, show rushing yards per game
 #                      and passing yards per game
 #                   2) When showing prior seasons, show overall season stats
+#                   3) Fix package so the emailed output includes ranking data
 
 # import dependencies
 import os, sys
