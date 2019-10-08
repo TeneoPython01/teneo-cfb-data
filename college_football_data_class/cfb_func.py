@@ -224,9 +224,10 @@ def get_rankings_all_weeks(year):
     #also have to handle for teams that go
     #from unranked to ranked (jump at least
     #25 positions).
-    df['Prev'] = pd.to_numeric(df['Prev'], errors='coerce').fillna(26).astype(int)
-    df['Rk'] = pd.to_numeric(df['Rk'], errors='coerce').fillna(26).astype(int)
+    df['Prev'] = pd.to_numeric(df['Prev'], errors='coerce').fillna(26).astype(int).round()
+    df['Rk'] = pd.to_numeric(df['Rk'], errors='coerce').fillna(26).astype(int).round()
     df['Chng'] = df['Prev'] - df['Rk']
+    df['Chng'] = df['Chng'].astype(int).round()
     if 'This Week' in df.columns:
         df.drop('This Week', axis=1, inplace=True)
 
@@ -236,8 +237,14 @@ def get_rankings_all_weeks(year):
     #exist (week 1 preseason ranking data) then show
     #an empty string.
     split = df["School"].str.split("(", n = 1, expand = True)
-    df['School'] = split[0].str[:-1]
-    df['School Record'] = split[1].str[:-1]
+    #sometimes there are leading/trailing spaces to be removed
+    df['School'] = split[0].apply(lambda x: x.strip())
+    #record is always 0-0 when preseason rankings come out
+    #prior to week 1 games, so fillna with 0-0 records.
+    split[1] = split[1].fillna('(0-0)')
+    #sometimes there are leading/trailing spaces to be removed
+    df['School Record'] = split[1].apply(lambda x: x.strip())
+    #this line might be redundant / removable:
     df['School Record'] = df['School Record'].fillna('')
 
     #table data shows the conference including the
@@ -246,8 +253,13 @@ def get_rankings_all_weeks(year):
     #Coastal; or SEC East vs West.  When a conference
     #doesnt have a subconf, show an empty string.
     split = df["Conf"].str.split("(", n = 1, expand = True)
-    df['Conf'] = split[0].str[:-1]
-    df['Conf Sub'] = split[1].str[:-1]
+    #sometimes there are leading/trailing spaces to be removed
+    df['Conf'] = split[0].apply(lambda x: x.strip())
+    #fillna with empty string prevents NoneType error when
+    #no sub conf exists
+    split[1] = split[1].fillna('')
+    df['Conf Sub'] = split[1].apply(lambda x: x.strip())
+    #this line might be redundant / removable:
     df['Conf Sub'] = df['Conf Sub'].fillna('')
     
     #retype week column to integer
