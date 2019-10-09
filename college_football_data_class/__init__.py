@@ -181,7 +181,7 @@ class Schedule(object):
 
         temp_rank_df3[['away_team_rank','away_team_prev_rank','away_team_rank_chg']] = \
         temp_rank_df3[['away_team_rank','away_team_prev_rank','away_team_rank_chg']].fillna(26).astype(int).round()
-
+        
         temp_rank_df3.drop(['home_team_drop','away_team_drop'], axis=1, inplace=True)
 
         self.df_multi_yr_schedule_all_teams = temp_rank_df3
@@ -493,7 +493,7 @@ class Schedule(object):
                 'series_record'
             ]
             
-            self.next_game_list[count] = self.next_game_list[count][new_column_order].copy()
+            #self.next_game_list[count] = self.next_game_list[count][new_column_order].copy()
 
             #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
             #RANK 26 REPRESENTS UNRANKED
@@ -501,16 +501,32 @@ class Schedule(object):
                 'team_rank'
             ].to_string(index=False).strip()
             self.next_game_list[count]['team_rank'] = np.where(
-                self.next_game_list[count]['team_rank'] == '26',
+                self.next_game_list[count]['team_rank'].astype(str) == '26',
                 '(unranked)',
                 self.next_game_list[count]['team_rank'].apply(lambda x: '#' + str(x))
             )
+            self.next_game_list[count]['opponent_rank'] = self.next_game_list[count][
+                'opponent_rank'
+            ].to_string(index=False).strip()
+            self.next_game_list[count]['opponent_rank'] = np.where(
+                self.next_game_list[count]['opponent_rank'].astype(str) == '26',
+                '(unranked)',
+                self.next_game_list[count]['opponent_rank'].apply(lambda x: '#' + str(x))
+            )
 
+            self.last_game_list[count]['team_rank'] = self.last_game_list[count][
+                'team_rank'
+            ].to_string(index=False).strip()
+            self.last_game_list[count]['team_rank'] = np.where(
+                self.last_game_list[count]['team_rank'].astype(str) == '26',
+                '(unranked)',
+                self.last_game_list[count]['team_rank'].apply(lambda x: '#' + str(x))
+            )
             self.last_game_list[count]['opponent_rank'] = self.last_game_list[count][
                 'opponent_rank'
             ].to_string(index=False).strip()
             self.last_game_list[count]['opponent_rank'] = np.where(
-                self.last_game_list[count]['opponent_rank'] == '26',
+                self.last_game_list[count]['opponent_rank'].astype(str) == '26',
                 '(unranked)',
                 self.last_game_list[count]['opponent_rank'].apply(lambda x: '#' + str(x))
             )
@@ -519,7 +535,7 @@ class Schedule(object):
             #UPDATE THE GAME FRAME LISTS
             self.last_game_list[count] = self.last_game_list[count][new_column_order].copy()
             self.next_game_list[count] = self.next_game_list[count][new_column_order].copy()
-
+            
             #increment the for loop counter
             count = count + 1
         self.team_schedule_frame_list = self.temp_df_list
@@ -829,6 +845,73 @@ class Schedule(object):
               server, port, username, password,
               use_tls)
 
+    #FUNTION FINDS THE RANK FOR A GIVEN SEASON, WEEK, TEAM
+    #COMBINATION.  IF THE GIVEN PARAMETERS DON'T RETURN
+    #RANKING INFORMATION, IMPUTE THAT THE DATA IN QUESTION
+    #REFERENCES A TEAM THAT WAS UNRANKED AT THE GIVEN
+    #TIME.  RANK 26 REFERS TO UNRANKED.
+    #
+    #NOTE: PREV_RANK SHOULD ACTUALLY LOOK TO PRIOR WEEK
+    #INFO TO DETERMINE PRIOR RANK, AND THEN RANK_CHG
+    #SHOULD BE CALCULATED.  THIS IS NOT CURRENTLY CODED
+    #SO THIS WILL REQUIRE ENHANCEMENT IN THE FUTURE.
+    #
+    #USAGE:
+    #   rank_df, rank_str = RankForTeamLineItem(2019, 7, 'Wake Forest')
+    #   print(rank_df) # returns a frame that shows WFU
+    #                  # ranked as #19 at the given time
+    #   print(rank_str)# returns a string showing '19'
+    #   print(RankForTeamLineItem(2019, 7, 'Wake Forest')[0]) prints the df
+    #   print(RankForTeamLineItem(2019, 7, 'Wake Forest')[1]) prints the str
+    #
+    #   self.next_game_list[count]['temp_my_rank'] = self.RankForTeamAtPointInTime(
+    #       int(self.next_game_list[count]['season'].iloc[-1]),
+    #       int(self.next_game_list[count]['week'].iloc[-1]),
+    #       str(self.next_game_list[count]['my_team'].iloc[-1])
+    #   )[1].iloc[-1]
+
+    def RankForTeamAtPointInTime(self, season, week, team):
+        #create df as a pandas dataframe
+        df = pd.DataFrame()
+
+        #make df a copy of the ranking data for the given season/week/team
+        #parameters passed to the function
+        df = self.all_ranking_data[
+            (self.all_ranking_data['season'] == season)
+            & (self.all_ranking_data['week'] == week)
+            & (self.all_ranking_data['team'] == team)
+        ][['season','week','team','rank','prev_rank','rank_chg']].copy()
+        
+        #if df is empty, that means that the given parameters
+        #are for a team that wasn't ranked at the given point in time.
+        #in that case, populate df with proxy data representing that
+        #the team was unranked at that time.  rank #26 is a value
+        #used in this code base to represent unranked, since the
+        #ranking data source only shows the top 25 teams.  therefore,
+        #the code considers all unranked teams to be tied for rank #26.
+        if df.empty:
+            temp_data = {
+                'season': season, 
+                'week': week,
+                'team': team,
+                'rank': 26,
+                'prev_rank': 26,
+                'rank_chg': 0
+            }
+            df = pd.DataFrame(data=temp_data, index=[0])
+        
+        df['rank'] = np.where(
+            df['rank'].astype(str)=='26',
+            '(unranked)',
+            df['rank'].astype(str).apply(lambda x: '#' + x)
+        )
+        
+        #return df (the dataframe) as well as the rank
+        #in the form of a string.  see usage to understand
+        #how to parse these values when calling the
+        #function
+        return df, df['rank'].astype(str)
+    
 class Rankings(object):
 
     def __init__(self):
