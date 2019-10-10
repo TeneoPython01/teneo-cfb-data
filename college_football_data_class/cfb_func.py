@@ -156,11 +156,38 @@ def df_to_html(my_title, df):
     
     return html_script
 
+#FUNCTION SENDS MAIL
+#PARAMS:
+#    SEND_FROM: A STRING CONTAINING THE EMAIL ADDRESS
+#        OF THE SENDER
+#    SEND_TO: CAN BE A STRING OR A LIST OF STRINGS
+#        CONTAINING EMAIL ADDRESSES FOR RECIPIENTS
+#    SUBJECT: A STRING
+#    MESSAGE: A STRING
+#    FILES: A STRING OR A LIST OF STRINGS THAT
+#        CONTAINS THE PATH AND FILENAME OF EACH
+#        ATTACHMENT
+#    SERVER: A STRING WITH THE SERVER ADDRESS
+#    PORT: AN INTEGER
+#    USERNAME: A STRING OF THE EMAIL USERNAME
+#    PASSWORD: A STRING OF THE EMAIL PASSWORD
+#    USE_TLS: BOOLEAN
+#USAGE:
+#sendmail('emailaddr@gmail.com', recipient_list,
+#         message_body_str, subject_str, file_list,
+#         'smtp.gmail.com', 587, my_username,
+#         my_password, True)
 def sendmail(send_from, send_to, subject, message, 
-             files=[], server="localhost", port=587, 
+             files, server="localhost", port=587, 
              username='', password='', use_tls=True):
 
-    msg = MIMEMultipart('alternative')
+    if type(send_to) is list:
+        send_to = ' , '.join(send_to)
+    
+    if type(files) is not list:
+        files = [ files ]
+
+    msg = MIMEMultipart()
     msg['From'] = send_from
     msg['To'] = send_to
     msg['Date'] = formatdate(localtime=True)
@@ -181,7 +208,7 @@ def sendmail(send_from, send_to, subject, message,
     if use_tls:
         smtp.starttls()
     smtp.login(username, password)
-    smtp.sendmail(send_from, send_to, msg.as_string())
+    smtp.sendmail(send_from, send_to.split(','), msg.as_string())
     smtp.quit()
 
 def get_rankings_all_weeks(year):

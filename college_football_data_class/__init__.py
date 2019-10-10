@@ -823,7 +823,9 @@ class Schedule(object):
     #        self.send_scheudle_html('This is the subject', 'Dear so and so, How are you?', attachment_filename)
     def send_schedule_html(self, subject='[Teneo] - CFB Schedule Info', message='Needs body', files=[]):
         send_from = config['OUTGOING EMAIL']['from']
-        send_to = config['OUTGOING EMAIL']['to']
+        #send_to = config['OUTGOING EMAIL']['to']
+        send_to = config['OUTGOING EMAIL']['to'].split('\n')
+        send_to.pop(0)
         server = config['OUTGOING EMAIL']['server']
         port = config['OUTGOING EMAIL']['port']
         username = config['OUTGOING EMAIL']['username']
