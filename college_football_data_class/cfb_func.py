@@ -319,13 +319,6 @@ def get_rankings_all_weeks(year):
         'Normal'
     )
 
-    #preseason week is always week 1
-    #df['week'] = np.where(
-    #    df['date'] == 'Preseason',
-    #    1,
-    #    df['week']
-    #)
-
     #replace 'Final' and 'Preseason' values to dummy values that will sort well
     df['date'] = np.where(
         df['date'] == 'Final',

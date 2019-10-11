@@ -2,20 +2,20 @@
 #
 # Author(s):        BDT
 # Developed:        09/02/2019
-# Last Updated:     10/04/2019
+# Last Updated:     10/11/2019
 # Version History:  [v01 09/02/2019] Prototype to get schedule and record info
 #                   [v02 09/21/2019] Rewrite for increased efficiency
 #                   [v03 09/25/2019] Rewrite completed
 #                   [v04 10/04/2019] SCHEDULING COMPLETED, on to next feature
+#                   [v05 10/11/2019] Enhancements made to email frames
+#                   [v06 10/11/2019] Improvements to readability and commenting
 #
 # Purpose:          This script is used to establish the class objects
 #
 # Special Notes:    n/a
 #
-# Dev Backlog:      1) Functionalize (cfb_func) the determination of a team's
-#                      ranking where team=x, season=y, week=z so that the
-#                      code can show my_team_rank and opponent_rank
-#                   2) ffill() the ranking for a team in a given season
+# Dev Backlog:      
+#                   1) ffill() the ranking for a team in a given season
 
 
 # import cfb_func with custom path
@@ -28,61 +28,54 @@ import cfb_func as cfb_func
 #built by editing config_template.ini with a text editor
 #and saving in the same directory as config.ini
 import configparser
+config = configparser.ConfigParser()
+config.read('./config/config.ini')
 
 # import numpy to leverage np.where() for conditional df handling
 import numpy as np
 
+#pandas for dataframes
 import pandas as pd
 
-
-#initialize the config parser and read in from config.ini
-config = configparser.ConfigParser()
-config.read('./config/config.ini')
-
-#pull the teams to watch from the config into a list.  the
-#method used requires dropping (pop()) the first value.
-config_team_list = config['SCHEDULE']['teams to watch'].split('\n')
-config_team_list.pop(0)
-if len(config_team_list) == 0:
-    print('!!! NO WATCHLIST TEAMS FOUND IN CONFIG.INI.  ENDING PROGRAM. !!!')
-    exit()
-
-#pull the number of past years worth of schedule data to pull
-#from the config file
-config_num_past_years = int(config['SCHEDULE']['num past years'])
+ur_str = '(unranked)'
 
 #establish the Schedule class
 class Schedule(object):
 
     #__init__() "MAGIC METHOD" CREATES:
-    #   self.current_status AS STR
     #   self.num_past_years AS INT
     #   self.team_list AS LIST
     #   self.current_year AS INT
     def __init__(self):
-        self.current_status = 'STATUS INFOMATION LOG BEGIN'
-        self.__SetStatusMessage('Initializing class')
+        self.current_year = cfb_func.get_current_year()
+
+        self.__start_configparser()
+        
+        self.GetMultiYearScheduleAllTeams() #loads the schedule data
+
+
+    #METHOD INITIALIZES THE CONFIGPARSER 
+    def __start_configparser(self):
+
+        #pull the teams to watch from the config into a list.  the
+        #method used requires dropping (pop()) the first value.
+        config_team_list = config['SCHEDULE']['teams to watch'].split('\n')
+        config_team_list.pop(0)
+
+        #if the config file isnt properly configured, kill the program
+        if len(config_team_list) == 0:
+            print('NO WATCHLIST TEAMS FOUND IN CONFIG.INI.')
+            exit()
+
+        #pull the number of past years worth of schedule data to pull
+        #from the config file
+        config_num_past_years = int(config['SCHEDULE']['num past years'])
 
         #set the num_past_years and team_list based on data from config.ini
         self.num_past_years = config_num_past_years
         self.team_list = config_team_list
 
-        self.__SetStatusMessage('Finding current year based on system date')
-        self.current_year = cfb_func.get_current_year()
 
-        self.__SetStatusMessage('Getting schedule information for last ' 
-                              + str(self.num_past_years) + ' years')
-        self.GetMultiYearScheduleAllTeams() #loads the schedule data
-  
-    #METHOD APPENDS self.current_status WITH NEW MESSAGE STRING
-    #DUNDER PREFIX (__) MANGLES THE FUNCTION FOR PRIVATE
-    #MODULE USE ONLY
-    def __SetStatusMessage(self, msg=""):
-        self.current_status = self.current_status + '; \n' + msg
-    
-    #FUNCTION RETURNS self.current_status WHICH IS STRING
-    def ShowStatus(self):
-        return self.current_status
 
     #METHOD CREATES:
     # 1) self.df_multi_yr_schedule_all_teams AS PANDAS DATAFRAME which
@@ -106,109 +99,57 @@ class Schedule(object):
     def GetMultiYearScheduleAllTeams(self):
 
         self.df_multi_yr_schedule_all_teams = pd.DataFrame()
-
         self.all_ranking_data = pd.DataFrame()
         
+        #populate self.df_multi_yr_schedule_all_teams with the
+        #schedule data from cfb_func.get_full_year_schedule_all_teams()
+        #for each year in the range of num_past_years years ago through
+        #current year;
+        #also, populate self.all_ranking_data with the week-by-week
+        #top 25 AP rankings for the same year range
+        for year_item in range(self.current_year-self.num_past_years+1,
+                               self.current_year+1):
 
-
-
-        
-        self.temp_df_list = []
-        
-        for year_item in range(self.current_year-self.num_past_years+1, self.current_year+1):
-
-            self.__SetStatusMessage('Getting schedule for year = ' + str(year_item))
-            self.df_multi_yr_schedule_all_teams = self.df_multi_yr_schedule_all_teams.append(
+            self.df_multi_yr_schedule_all_teams = \
+            self.df_multi_yr_schedule_all_teams.append(
                 cfb_func.get_full_year_schedule_all_teams(year_item)
             )
             self.all_ranking_data = self.all_ranking_data.append(
                 cfb_func.get_rankings_all_weeks(year_item)
             )
-        
 
-        #THE FOLLOWING CODE SHOULD BE METHODIZED
-        #IT ADDS RANKING DATA TO THE MULTIYR SCHEDULE FRAME
-
-
-
-        temp_rank_df1 = self.df_multi_yr_schedule_all_teams.copy()
-        temp_rank_df2 = self.all_ranking_data[['season','week','team','rank','prev_rank','rank_chg']].copy()
-
-        temp_rank_df3 = temp_rank_df1.merge(
-            temp_rank_df2,
-            how='left',
-            left_on=['season','week','home_team'],
-            right_on=['season','week','team'],
-            suffixes=('_l','_r')
+        #merge the ranking data into self.df_multi_yr_schedule_all_teams
+        self.df_multi_yr_schedule_all_teams = \
+        self.__merge_rankings_into_schedule_data(
+            self.df_multi_yr_schedule_all_teams,
+            self.all_ranking_data[[
+                'season',
+                'week',
+                'team',
+                'rank',
+                'prev_rank',
+                'rank_chg'
+            ]]
         )
-
-        temp_rank_df3[['rank','prev_rank']] = temp_rank_df3[['rank','prev_rank']].fillna(26)
-        temp_rank_df3['rank_chg'] = temp_rank_df3['prev_rank'] - temp_rank_df3['rank']
-
-        temp_rank_df3.rename(
-            columns={
-                'team':'home_team_drop',
-                'rank':'home_team_rank',
-                'prev_rank':'home_team_prev_rank',
-                'rank_chg':'home_team_rank_chg'
-            },
-            inplace=True
-        )
-
-        temp_rank_df3[['home_team_rank','home_team_prev_rank','home_team_rank_chg']] = \
-        temp_rank_df3[['home_team_rank','home_team_prev_rank','home_team_rank_chg']].fillna(26).astype(int).round()
-
-        temp_rank_df3 = temp_rank_df3.merge(
-            temp_rank_df2,
-            how='left',
-            left_on=['season','week','away_team'],
-            right_on=['season','week','team'],
-            suffixes=('_l','_r')
-        )
-
-        temp_rank_df3[['rank','prev_rank']] = temp_rank_df3[['rank','prev_rank']].fillna(26)
-        temp_rank_df3['rank_chg'] = temp_rank_df3['prev_rank'] - temp_rank_df3['rank']
-
-        temp_rank_df3.rename(
-            columns={
-                'team':'away_team_drop',
-                'rank':'away_team_rank',
-                'prev_rank':'away_team_prev_rank',
-                'rank_chg':'away_team_rank_chg'
-            },
-            inplace=True
-        )
-
-        temp_rank_df3[['away_team_rank','away_team_prev_rank','away_team_rank_chg']] = \
-        temp_rank_df3[['away_team_rank','away_team_prev_rank','away_team_rank_chg']].fillna(26).astype(int).round()
         
-        temp_rank_df3.drop(['home_team_drop','away_team_drop'], axis=1, inplace=True)
-
-        self.df_multi_yr_schedule_all_teams = temp_rank_df3
-
-        #END CODE BLOCK THAT ADDS RANKING DATA TO MULTIYR SCHEDULE FRAME
-        
-        
-        
+        #populate self.current_ranking_data with latest season & week
+        #ranking data
         self.current_ranking_data = self.all_ranking_data[
-            (self.all_ranking_data['season_week'] == self.all_ranking_data['season_week'].max())
+            (self.all_ranking_data['season_week'] == \
+             self.all_ranking_data['season_week'].max())
         ]
 
-        self.__SetStatusMessage('Received all year schedules in year range provided')
-
+        #flag records in the schedule frame for teams on the watch list
         self.df_multi_yr_schedule_all_teams['on_team_watch_list'] = np.where(
-            (self.df_multi_yr_schedule_all_teams['home_team'].isin(self.team_list)) 
+            (self.df_multi_yr_schedule_all_teams['home_team'].isin(self.team_list))
             | (self.df_multi_yr_schedule_all_teams['away_team'].isin(self.team_list)),
             1,
             None
         )
-        self.__SetStatusMessage('Flagged games involving teams on the watch list')
 
-        #initialize the list that will hold the team schedule dfs
+        #initialize the lists that will hold the dfs for watchlist teams.
+        #these will be lists of frames.
         self.team_schedule_frame_list = []
-        
-        #initialize the lists that will hold the HTML information
-
         self.next_game_list = []
         self.last_game_list = []
         self.all_prior_matchup_next_opp_list = []
@@ -216,164 +157,40 @@ class Schedule(object):
         #initialize the for loop counter
         count = 0
 
-
-        
         #iterate through the teams in the team watch list
         for team_item in self.team_list:
-            self.temp_df_list.append(pd.DataFrame())
-            #append the full all-team multi-year schedule to the list
-            self.team_schedule_frame_list.append(self.df_multi_yr_schedule_all_teams.copy())
-            
-            #this line of code may seem redundant, but it clears the dreaded
-            #"copy of a slice of a copy of a whatever" warning
-            self.team_schedule_frame_list[count] = self.team_schedule_frame_list[count].copy()
 
-            #filter the current position of the list's df to just the current team_item
-            self.team_schedule_frame_list[count] = self.team_schedule_frame_list[count][
+            #add an empty df to the temp_df_list
+            #self.temp_df_list.append(pd.DataFrame())
+
+            #append the full all-team multi-year schedule to 
+            #the team_schedule_frame_list df
+            self.team_schedule_frame_list.append(
+                self.df_multi_yr_schedule_all_teams.copy()
+            )
+            
+            #this code may seem redundant, but it clears the dreaded
+            #"copy of a slice of a copy of a whatever" warning
+            self.team_schedule_frame_list[count] = \
+            self.team_schedule_frame_list[count].copy()
+
+            #filter the current position of the list's
+            #df to just the current team_item
+            self.team_schedule_frame_list[count] = \
+            self.team_schedule_frame_list[count][
                 (self.team_schedule_frame_list[count]['home_team']==team_item)
                 | (self.team_schedule_frame_list[count]['away_team']==team_item)
             ]
             
             #add additional columns to the current position of the list's df
-            self.team_schedule_frame_list[count]['my_team'] = team_item
-            self.team_schedule_frame_list[count]['opponent'] = np.where(
-                self.team_schedule_frame_list[count]['home_team'] == team_item,
-                self.team_schedule_frame_list[count]['away_team'],
-                self.team_schedule_frame_list[count]['home_team']
-            )
-            self.team_schedule_frame_list[count]['team_pts'] = None
-            self.team_schedule_frame_list[count]['opponent_pts'] = None
-            
-            self.team_schedule_frame_list[count]['team_pts'] = np.where(
-                self.team_schedule_frame_list[count]['home_team'] == team_item,
-                self.team_schedule_frame_list[count]['home_points'],
-                self.team_schedule_frame_list[count]['team_pts']
-            )
-            self.team_schedule_frame_list[count]['team_pts'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['away_points'],
-                self.team_schedule_frame_list[count]['team_pts']
-            )
-            self.team_schedule_frame_list[count]['team_rank'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['away_team_rank'],
-                self.team_schedule_frame_list[count]['home_team_rank']
-            )
-            self.team_schedule_frame_list[count]['team_prev_rank'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['away_team_prev_rank'],
-                self.team_schedule_frame_list[count]['home_team_prev_rank']
-            )
-            self.team_schedule_frame_list[count]['team_rank_chg'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['away_team_rank_chg'],
-                self.team_schedule_frame_list[count]['home_team_rank_chg']
-            )
-            self.team_schedule_frame_list[count]['opponent_pts'] = np.where(
-                self.team_schedule_frame_list[count]['home_team'] == team_item,
-                self.team_schedule_frame_list[count]['away_points'],
-                self.team_schedule_frame_list[count]['opponent_pts']
-            )
-            self.team_schedule_frame_list[count]['opponent_pts'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['home_points'],
-                self.team_schedule_frame_list[count]['opponent_pts']
-            )
-            self.team_schedule_frame_list[count]['opponent_rank'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['home_team_rank'],
-                self.team_schedule_frame_list[count]['away_team_rank']
-            )
-            self.team_schedule_frame_list[count]['opponent_prev_rank'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['home_team_prev_rank'],
-                self.team_schedule_frame_list[count]['away_team_prev_rank']
-            )
-            self.team_schedule_frame_list[count]['opponent_rank_chg'] = np.where(
-                self.team_schedule_frame_list[count]['away_team'] == team_item,
-                self.team_schedule_frame_list[count]['home_team_rank_chg'],
-                self.team_schedule_frame_list[count]['away_team_rank_chg']
-            )
-            self.team_schedule_frame_list[count]['winner'] = np.where(
-                self.team_schedule_frame_list[count]['home_points'] > \
-                self.team_schedule_frame_list[count]['away_points'],
-                self.team_schedule_frame_list[count]['home_team'],
-                self.team_schedule_frame_list[count]['away_team']
-            )
-            self.team_schedule_frame_list[count]['team_venue'] = np.where(
-                self.team_schedule_frame_list[count]['home_team'] == team_item,
-                'Home',
-                'Away'
-            )
-            self.team_schedule_frame_list[count]['team_win_bool'] = np.where(
-                self.team_schedule_frame_list[count]['team_pts'] > 
-                self.team_schedule_frame_list[count]['opponent_pts'],
-                1,
-                0
-            )
-            
-            self.team_schedule_frame_list[count]['is_current_season_bool'] = np.where(
-                (self.team_schedule_frame_list[count]['season'] == 
-                     self.team_schedule_frame_list[count][
-                         self.team_schedule_frame_list[count]['team_pts'] >= 0
-                     ].iloc[-1]['season']
-                ),
-                1,
-                0
-            )
-
-            self.team_schedule_frame_list[count]['is_last_game_bool'] = np.where(
-                (self.team_schedule_frame_list[count]['team_pts'] >= 0) &
-                (self.team_schedule_frame_list[count]['week'] == 
-                     self.team_schedule_frame_list[count][
-                         self.team_schedule_frame_list[count]['team_pts'] >= 0
-                     ].iloc[-1]['week']
-                ) &
-                (self.team_schedule_frame_list[count]['season'] == 
-                     self.team_schedule_frame_list[count][
-                         self.team_schedule_frame_list[count]['team_pts'] >= 0
-                     ].iloc[-1]['season']
-                ),
-                1,
-                0
-            )
-
-            self.team_schedule_frame_list[count]['is_next_game_bool'] = np.where(
-                (self.team_schedule_frame_list[count]['team_pts'].isnull()) &
-                (self.team_schedule_frame_list[count]['week'] == 
-                     self.team_schedule_frame_list[count][
-                         self.team_schedule_frame_list[count]['team_pts'].isnull()
-                     ].iloc[0]['week']
-                ),
-                1,
-                0
-            )
+            self.__add_new_fields_to_team_schedule_frame_list(count, team_item)
             
             #define the desired columns to be kept
             columns_to_keep = [
-                #'id', 
                 'season', 
                 'week', 
                 'season_type', 
-                #'start_date', 
-                #'neutral_site',
-                #'conference_game', 
-                #'attendance', 
-                #'venue_id', 
-                #'venue', 
-                #'home_team',
-                #'home_conference', 
-                #'home_points', 
-                #'home_line_scores', 
-                #'away_team',
-                #'away_conference', 
-                #'away_points', 
-                #'away_line_scores', 
-                #'start_time_dt',
                 'start_time_str', 
-                #'start_year_dtper', 
-                #'start_year_int',
-                #'on_team_watch_list', 
                 'my_team', 
                 'opponent',
                 'team_pts', 
@@ -384,7 +201,6 @@ class Schedule(object):
                 'is_current_season_bool',
                 'is_last_game_bool',
                 'is_next_game_bool',
-                #'series_record',
                 'team_rank',
                 'team_prev_rank',
                 'team_rank_chg',
@@ -393,191 +209,23 @@ class Schedule(object):
                 'opponent_rank_chg'
             ]
             
-            #reduce the current list position's df down to just the desired columns
-            self.team_schedule_frame_list[count] = self.team_schedule_frame_list[count][columns_to_keep]
+            #reduce the current list position's df down to
+            #just the desired columns
+            self.team_schedule_frame_list[count] = \
+            self.team_schedule_frame_list[count][columns_to_keep]
             
+            #build the next_game_list frame
+            self.__build_next_game_list_frame(count)
             
-            columns_to_drop = [
-                'team_pts',
-                'opponent_pts',
-                'winner',
-                'team_win_bool',
-                'is_current_season_bool',
-                'is_last_game_bool',
-                'is_next_game_bool'
-            ]
-            self.next_game_list.append(pd.DataFrame())
-            self.next_game_list[count] = self.team_schedule_frame_list[count][
-                (self.team_schedule_frame_list[count]['is_next_game_bool']==1)
-            ].copy().drop(
-                columns_to_drop,
-                axis=1,
-                inplace=False
-            )
-            self.next_game_list[count]['series_record'] = self.FindTeamVsOpponentRecentSeriesRecord(
-                self.next_game_list[count]['my_team'].iloc[-1], 
-                self.next_game_list[count]['opponent'].iloc[-1]
-            )[0]
-            #THIS CODE CHANGES my_team AND opponent INTO A FORMATTED
-            #NAME THAT INCLUDES THE RANK LIKE "Wake Forest (#19)"
-            #BUT CAUSES DOWNSTREAM ISSUES BECAUSE THE FIELDS CAN'T
-            #BE USED FOR MATCHING ANYMORE.  BETTER TO JUST SHOW A
-            #RANK FIELD NEXT TO EACH TEAM.  SHOW AS STR SO NO
-            #DECIMALS AND CAN USE EMPTY STRING FOR UNRANKED.
-            #self.next_game_list[count]['my_team'] = np.where(
-            #    self.next_game_list[count]['team_rank'] != 26,
-            #    self.next_game_list[count]['my_team'] + ' (#' + self.next_game_list[count]['team_rank'].astype(str) + ')',
-            #    self.next_game_list[count]['my_team']
-            #)
-            #self.next_game_list[count]['opponent'] = np.where(
-            #    self.next_game_list[count]['opponent_rank'] != 26,
-            #    self.next_game_list[count]['opponent'] + \
-            #     ' (#' + self.next_game_list[count]['opponent_rank'].astype(str) + ')',
-            #    self.next_game_list[count]['opponent']
-            #)
+            #build the last_game_list frame
+            self.__build_last_game_list_frame(count)
             
-            columns_to_drop = [
-                'team_win_bool',
-                'is_current_season_bool',
-                'is_last_game_bool',
-                'is_next_game_bool'
-            ]
-            self.last_game_list.append(pd.DataFrame())
-            self.last_game_list[count] = self.team_schedule_frame_list[count][
-                (self.team_schedule_frame_list[count]['is_last_game_bool']==1)
-            ].copy().drop(
-                columns_to_drop,
-                axis=1,
-                inplace=False
-            )
-            self.last_game_list[count]['series_record'] = self.FindTeamVsOpponentRecentSeriesRecord(
-                self.last_game_list[count]['my_team'].iloc[-1], 
-                self.last_game_list[count]['opponent'].iloc[-1]
-            )[0]
-            
-            columns_to_drop = [
-                'team_win_bool',
-                'is_current_season_bool',
-                'is_last_game_bool',
-                'is_next_game_bool'
-            ]
-            self.all_prior_matchup_next_opp_list.append(pd.DataFrame())
-            self.all_prior_matchup_next_opp_list[count] = self.team_schedule_frame_list[count][
-                (self.team_schedule_frame_list[count]['team_pts'] >= 0) &
-                (
-                    (
-                        (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['my_team'].iloc[-1]) &
-                        (self.team_schedule_frame_list[count]['opponent']==self.next_game_list[count]['opponent'].iloc[-1]) 
-                    ) |
-                    (
-                        (self.team_schedule_frame_list[count]['opponent']==self.next_game_list[count]['my_team'].iloc[-1]) &
-                        (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['opponent'].iloc[-1]) 
-                    )
-                )
-            ].copy()
-            
-            new_column_order = [
-                'season',
-                'week',
-                'season_type',
-                'start_time_str',
-                'my_team',
-                'team_rank',
-                'opponent',
-                'opponent_rank',
-                'team_pts',
-                'opponent_pts',
-                'winner',
-                'team_venue'
-            ]
-
-            self.all_prior_matchup_next_opp_list[count] = self.all_prior_matchup_next_opp_list[count][new_column_order]
-
-            #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
-            #RANK 26 REPRESENTS UNRANKED
-            self.all_prior_matchup_next_opp_list[count]['team_rank'] = self.all_prior_matchup_next_opp_list[count][
-                'team_rank'
-            ].apply(lambda x: str(x))#.to_string(index=False).strip()
-            self.all_prior_matchup_next_opp_list[count]['team_rank'] = np.where(
-                self.all_prior_matchup_next_opp_list[count]['team_rank'].astype(str) == '26',
-                '(unranked)',
-                self.all_prior_matchup_next_opp_list[count]['team_rank'].apply(lambda x: '#' + str(x))
-            )
-            self.all_prior_matchup_next_opp_list[count]['opponent_rank'] = self.all_prior_matchup_next_opp_list[count][
-                'opponent_rank'
-            ].apply(lambda x: str(x))#.to_string(index=False).strip()
-            self.all_prior_matchup_next_opp_list[count]['opponent_rank'] = np.where(
-                self.all_prior_matchup_next_opp_list[count]['opponent_rank'].astype(str) == '26',
-                '(unranked)',
-                self.all_prior_matchup_next_opp_list[count]['opponent_rank'].apply(lambda x: '#' + str(x))
-            )
-
-            #self.all_prior_matchup_next_opp_list.drop(
-            #    columns_to_drop,
-            #    axis=1,
-            #    inplace=False
-            #)
-            
-            new_column_order = [
-                'season',
-                'week',
-                'season_type',
-                'start_time_str',
-                'my_team',
-                'team_rank',
-                'opponent',
-                'opponent_rank',
-                'team_venue',
-                'series_record'
-            ]
-            
-            #self.next_game_list[count] = self.next_game_list[count][new_column_order].copy()
-
-            #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
-            #RANK 26 REPRESENTS UNRANKED
-            self.next_game_list[count]['team_rank'] = self.next_game_list[count][
-                'team_rank'
-            ].to_string(index=False).strip()
-            self.next_game_list[count]['team_rank'] = np.where(
-                self.next_game_list[count]['team_rank'].astype(str) == '26',
-                '(unranked)',
-                self.next_game_list[count]['team_rank'].apply(lambda x: '#' + str(x))
-            )
-            self.next_game_list[count]['opponent_rank'] = self.next_game_list[count][
-                'opponent_rank'
-            ].to_string(index=False).strip()
-            self.next_game_list[count]['opponent_rank'] = np.where(
-                self.next_game_list[count]['opponent_rank'].astype(str) == '26',
-                '(unranked)',
-                self.next_game_list[count]['opponent_rank'].apply(lambda x: '#' + str(x))
-            )
-
-            self.last_game_list[count]['team_rank'] = self.last_game_list[count][
-                'team_rank'
-            ].to_string(index=False).strip()
-            self.last_game_list[count]['team_rank'] = np.where(
-                self.last_game_list[count]['team_rank'].astype(str) == '26',
-                '(unranked)',
-                self.last_game_list[count]['team_rank'].apply(lambda x: '#' + str(x))
-            )
-            self.last_game_list[count]['opponent_rank'] = self.last_game_list[count][
-                'opponent_rank'
-            ].to_string(index=False).strip()
-            self.last_game_list[count]['opponent_rank'] = np.where(
-                self.last_game_list[count]['opponent_rank'].astype(str) == '26',
-                '(unranked)',
-                self.last_game_list[count]['opponent_rank'].apply(lambda x: '#' + str(x))
-            )
-                
-            
-            #UPDATE THE GAME FRAME LISTS
-            self.last_game_list[count] = self.last_game_list[count][new_column_order].copy()
-            self.next_game_list[count] = self.next_game_list[count][new_column_order].copy()
+            #build the all_prior_matchup_next_opp_list frame
+            self.__build_all_prior_matchup_next_opp_list_frame(count)
             
             #increment the for loop counter
             count = count + 1
-        self.team_schedule_frame_list = self.temp_df_list
-        del self.temp_df_list
+
         
     #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE FOR A 
     #GIVEN TEAM AND SEASON
@@ -594,8 +242,7 @@ class Schedule(object):
         #create a df to hold the team records
         df_record = pd.DataFrame()
         df_record = self.df_multi_yr_schedule_all_teams.copy()
-        #seems redundant, but this suppresses the copy/slice/copy warning
-        df_record = df_record.copy()
+        df_record = df_record.copy() #suppress the copy/slice/copy warning
         
         #create new fields used to calculate record
         df_record['record_team'] = record_team
@@ -661,8 +308,6 @@ class Schedule(object):
             (df_record['team_pts'] >= 0)
         ]
         
-        #df_record = df_record[['record_team', 'season', 'week', 'team_win_bool']]
-
         df_record['game_count'] = df_record.groupby('season')['team_win_bool'].count().iloc[-1]
         df_record['win_count'] = df_record.groupby('season')['team_win_bool'].sum().iloc[-1]
         df_record['loss_count'] = df_record['game_count'] - df_record['win_count']
@@ -681,17 +326,12 @@ class Schedule(object):
             df_record['away_team_rank']
         )
 
-        
-        
-        #df_record.drop(['game_count', 'win_count', 'loss_count'], axis=1, inplace=True)
         df_record = df_record[[
             'season',
             'week',
             'season_type',
-            #my_team
             'my_team',
             'team_rank',
-            #opponent
             'opponent',
             'opponent_rank',
             'team_pts',
@@ -702,22 +342,8 @@ class Schedule(object):
 
         #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
         #RANK 26 REPRESENTS UNRANKED
-        df_record['team_rank'] = df_record['team_rank'].apply(
-            lambda x: str(x)
-        )
-        df_record['team_rank'] = np.where(
-            df_record['team_rank'].astype(str) == '26',
-            '(unranked)',
-            df_record['team_rank'].apply(lambda x: '#' + str(x))
-        )
-        df_record['opponent_rank'] = df_record['opponent_rank'].apply(
-            lambda x: str(x)
-        )
-        df_record['opponent_rank'] = np.where(
-            df_record['opponent_rank'].astype(str) == '26',
-            '(unranked)',
-            df_record['opponent_rank'].apply(lambda x: '#' + str(x))
-        )
+        df_record = self.__format_rank_26(df_record, 'team_rank', ur_str, 1)
+        df_record = self.__format_rank_26(df_record, 'opponent_rank', ur_str, 1)
         
         return win_loss_record, df_record
 
@@ -731,8 +357,7 @@ class Schedule(object):
         #create a df to hold the series records
         df_series = pd.DataFrame()
         df_series = self.df_multi_yr_schedule_all_teams.copy()
-        #seems redundant, but this suppresses the copy/slice/copy warning
-        df_series = df_series.copy()
+        df_series = df_series.copy() #suppress the copy/slice/copy warning
         
         #create new fields used to calculate record
         df_series['series_team'] = series_team
@@ -806,9 +431,6 @@ class Schedule(object):
             'team_venue',
             'team_win_bool'
         ]]
-
-        
-        
         
         df_series['game_count'] = df_series.groupby('series_team')['team_win_bool'].count().iloc[-1]
         df_series['win_count'] = df_series.groupby('series_team')['team_win_bool'].sum().iloc[-1]
@@ -942,13 +564,6 @@ class Schedule(object):
     #   print(rank_str)# returns a string showing '19'
     #   print(RankForTeamLineItem(2019, 7, 'Wake Forest')[0]) prints the df
     #   print(RankForTeamLineItem(2019, 7, 'Wake Forest')[1]) prints the str
-    #
-    #   self.next_game_list[count]['temp_my_rank'] = self.RankForTeamAtPointInTime(
-    #       int(self.next_game_list[count]['season'].iloc[-1]),
-    #       int(self.next_game_list[count]['week'].iloc[-1]),
-    #       str(self.next_game_list[count]['my_team'].iloc[-1])
-    #   )[1].iloc[-1]
-
     def RankForTeamAtPointInTime(self, season, week, team):
         #create df as a pandas dataframe
         df = pd.DataFrame()
@@ -979,18 +594,389 @@ class Schedule(object):
             }
             df = pd.DataFrame(data=temp_data, index=[0])
         
-        df['rank'] = np.where(
-            df['rank'].astype(str)=='26',
-            '(unranked)',
-            df['rank'].astype(str).apply(lambda x: '#' + x)
-        )
+        df = self.__format_rank_26(df, 'rank', ur_str, 0)
         
         #return df (the dataframe) as well as the rank
         #in the form of a string.  see usage to understand
         #how to parse these values when calling the
         #function
         return df, df['rank'].astype(str)
-    
+
+    #FUNCTION MERGES THE SEASON-BY-SEASON WEEK-BY-WEEK AP RANKING
+    #DATA INTO THE MULTIYR ALL TEAM SCHEDULE DATA
+    #USAGE:
+    #   __merge_rankings_into_schedule_data(multiyr_schedule_df, rankings_df):
+    def __merge_rankings_into_schedule_data(self, schedule_df, rankings_df):
+
+        temp_rank_df1 = schedule_df.copy()
+        temp_rank_df2 = rankings_df.copy()
+        temp_rank_df3 = temp_rank_df1.merge(
+            temp_rank_df2,
+            how='left',
+            left_on=['season','week','home_team'],
+            right_on=['season','week','team'],
+            suffixes=('_l','_r')
+        )
+
+        temp_rank_df3[['rank','prev_rank']] = \
+        temp_rank_df3[['rank','prev_rank']].fillna(26)
+
+        temp_rank_df3['rank_chg'] = \
+        temp_rank_df3['prev_rank'] - temp_rank_df3['rank']
+
+        temp_rank_df3.rename(
+            columns={
+                'team':'home_team_drop',
+                'rank':'home_team_rank',
+                'prev_rank':'home_team_prev_rank',
+                'rank_chg':'home_team_rank_chg'
+            },
+            inplace=True
+        )
+
+        temp_rank_df3[[
+            'home_team_rank',
+            'home_team_prev_rank',
+            'home_team_rank_chg'
+        ]] = temp_rank_df3[[
+            'home_team_rank',
+            'home_team_prev_rank',
+            'home_team_rank_chg'
+        ]].fillna(26).astype(int).round()
+
+        temp_rank_df3 = temp_rank_df3.merge(
+            temp_rank_df2,
+            how='left',
+            left_on=['season','week','away_team'],
+            right_on=['season','week','team'],
+            suffixes=('_l','_r')
+        )
+
+        temp_rank_df3[[
+            'rank',
+            'prev_rank'
+        ]] = temp_rank_df3[[
+            'rank',
+            'prev_rank'
+        ]].fillna(26)
+
+        temp_rank_df3['rank_chg'] = (
+            temp_rank_df3['prev_rank'] - temp_rank_df3['rank']
+        )
+
+        temp_rank_df3.rename(
+            columns={
+                'team':'away_team_drop',
+                'rank':'away_team_rank',
+                'prev_rank':'away_team_prev_rank',
+                'rank_chg':'away_team_rank_chg'
+            },
+            inplace=True
+        )
+
+        temp_rank_df3[[
+            'away_team_rank',
+            'away_team_prev_rank',
+            'away_team_rank_chg'
+        ]] = temp_rank_df3[[
+            'away_team_rank',
+            'away_team_prev_rank',
+            'away_team_rank_chg'
+        ]].fillna(26).astype(int).round()
+        
+        temp_rank_df3.drop(
+            [
+                'home_team_drop',
+                'away_team_drop'
+            ], axis=1, inplace=True
+        )
+        
+        return temp_rank_df3
+
+    def __add_new_fields_to_team_schedule_frame_list(self, count, team_item):
+
+        #add additional columns to the current position of the list's df
+        self.team_schedule_frame_list[count]['my_team'] = team_item
+
+        self.team_schedule_frame_list[count]['opponent'] = np.where(
+            self.team_schedule_frame_list[count]['home_team'] == team_item,
+            self.team_schedule_frame_list[count]['away_team'],
+            self.team_schedule_frame_list[count]['home_team']
+        )
+
+        self.team_schedule_frame_list[count]['team_pts'] = None
+
+        self.team_schedule_frame_list[count]['opponent_pts'] = None
+
+        self.team_schedule_frame_list[count]['team_pts'] = np.where(
+            self.team_schedule_frame_list[count]['home_team'] == team_item,
+            self.team_schedule_frame_list[count]['home_points'],
+            self.team_schedule_frame_list[count]['team_pts']
+        )
+
+        self.team_schedule_frame_list[count]['team_pts'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['away_points'],
+            self.team_schedule_frame_list[count]['team_pts']
+        )
+
+        self.team_schedule_frame_list[count]['team_rank'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['away_team_rank'],
+            self.team_schedule_frame_list[count]['home_team_rank']
+        )
+
+        self.team_schedule_frame_list[count]['team_prev_rank'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['away_team_prev_rank'],
+            self.team_schedule_frame_list[count]['home_team_prev_rank']
+        )
+
+        self.team_schedule_frame_list[count]['team_rank_chg'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['away_team_rank_chg'],
+            self.team_schedule_frame_list[count]['home_team_rank_chg']
+        )
+
+        self.team_schedule_frame_list[count]['opponent_pts'] = np.where(
+            self.team_schedule_frame_list[count]['home_team'] == team_item,
+            self.team_schedule_frame_list[count]['away_points'],
+            self.team_schedule_frame_list[count]['opponent_pts']
+        )
+
+        self.team_schedule_frame_list[count]['opponent_pts'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['home_points'],
+            self.team_schedule_frame_list[count]['opponent_pts']
+        )
+
+        self.team_schedule_frame_list[count]['opponent_rank'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['home_team_rank'],
+            self.team_schedule_frame_list[count]['away_team_rank']
+        )
+
+        self.team_schedule_frame_list[count]['opponent_prev_rank'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['home_team_prev_rank'],
+            self.team_schedule_frame_list[count]['away_team_prev_rank']
+        )
+
+        self.team_schedule_frame_list[count]['opponent_rank_chg'] = np.where(
+            self.team_schedule_frame_list[count]['away_team'] == team_item,
+            self.team_schedule_frame_list[count]['home_team_rank_chg'],
+            self.team_schedule_frame_list[count]['away_team_rank_chg']
+        )
+
+        self.team_schedule_frame_list[count]['winner'] = np.where(
+            self.team_schedule_frame_list[count]['home_points'] > \
+            self.team_schedule_frame_list[count]['away_points'],
+            self.team_schedule_frame_list[count]['home_team'],
+            self.team_schedule_frame_list[count]['away_team']
+        )
+
+        self.team_schedule_frame_list[count]['team_venue'] = np.where(
+            self.team_schedule_frame_list[count]['home_team'] == team_item,
+            'Home',
+            'Away'
+        )
+
+        self.team_schedule_frame_list[count]['team_win_bool'] = np.where(
+            self.team_schedule_frame_list[count]['team_pts'] > 
+            self.team_schedule_frame_list[count]['opponent_pts'],
+            1,
+            0
+        )
+
+        self.team_schedule_frame_list[count]['is_current_season_bool'] = \
+        np.where(
+            (self.team_schedule_frame_list[count]['season'] == 
+                 self.team_schedule_frame_list[count][
+                     self.team_schedule_frame_list[count]['team_pts'] >= 0
+                 ].iloc[-1]['season']
+            ),
+            1,
+            0
+        )
+
+        self.team_schedule_frame_list[count]['is_last_game_bool'] = np.where(
+            (self.team_schedule_frame_list[count]['team_pts'] >= 0) &
+            (self.team_schedule_frame_list[count]['week'] == 
+                 self.team_schedule_frame_list[count][
+                     self.team_schedule_frame_list[count]['team_pts'] >= 0
+                 ].iloc[-1]['week']
+            ) &
+            (self.team_schedule_frame_list[count]['season'] == 
+                 self.team_schedule_frame_list[count][
+                     self.team_schedule_frame_list[count]['team_pts'] >= 0
+                 ].iloc[-1]['season']
+            ),
+            1,
+            0
+        )
+
+        self.team_schedule_frame_list[count]['is_next_game_bool'] = np.where(
+            (self.team_schedule_frame_list[count]['team_pts'].isnull()) &
+            (self.team_schedule_frame_list[count]['week'] == 
+                 self.team_schedule_frame_list[count][
+                     self.team_schedule_frame_list[count]['team_pts'].isnull()
+                 ].iloc[0]['week']
+            ),
+            1,
+            0
+        )
+
+    def __build_next_game_list_frame(self, count):
+        #build the next_game_list frame
+        columns_to_drop = [
+            'team_pts',
+            'opponent_pts',
+            'winner',
+            'team_win_bool',
+            'is_current_season_bool',
+            'is_last_game_bool',
+            'is_next_game_bool'
+        ]
+        self.next_game_list.append(pd.DataFrame())
+        self.next_game_list[count] = self.team_schedule_frame_list[count][
+            (self.team_schedule_frame_list[count]['is_next_game_bool']==1)
+        ].copy().drop(
+            columns_to_drop,
+            axis=1,
+            inplace=False
+        )
+        self.next_game_list[count]['series_record'] = \
+        self.FindTeamVsOpponentRecentSeriesRecord(
+            self.next_game_list[count]['my_team'].iloc[-1], 
+            self.next_game_list[count]['opponent'].iloc[-1]
+        )[0]
+
+        new_column_order = [
+            'season',
+            'week',
+            'season_type',
+            'start_time_str',
+            'my_team',
+            'team_rank',
+            'opponent',
+            'opponent_rank',
+            'team_venue',
+            'series_record'
+        ]
+        self.next_game_list[count] = \
+        self.next_game_list[count][new_column_order].copy()        
+
+        
+    def __build_last_game_list_frame(self, count):
+        columns_to_drop = [
+            'team_win_bool',
+            'is_current_season_bool',
+            'is_last_game_bool',
+            'is_next_game_bool'
+        ]
+        self.last_game_list.append(pd.DataFrame())
+        self.last_game_list[count] = self.team_schedule_frame_list[count][
+            (self.team_schedule_frame_list[count]['is_last_game_bool']==1)
+        ].copy().drop(
+            columns_to_drop,
+            axis=1,
+            inplace=False
+        )
+        self.last_game_list[count]['series_record'] = self.FindTeamVsOpponentRecentSeriesRecord(
+            self.last_game_list[count]['my_team'].iloc[-1], 
+            self.last_game_list[count]['opponent'].iloc[-1]
+        )[0]
+
+        self.next_game_list[count] = self.__format_rank_26(self.next_game_list[count], 'team_rank', ur_str, 0)
+        self.next_game_list[count] = self.__format_rank_26(self.next_game_list[count], 'opponent_rank', ur_str, 0)
+        self.last_game_list[count] = self.__format_rank_26(self.last_game_list[count], 'team_rank', ur_str, 0)
+        self.last_game_list[count] = self.__format_rank_26(self.last_game_list[count], 'opponent_rank', ur_str, 0)
+
+        new_column_order = [
+            'season',
+            'week',
+            'season_type',
+            'start_time_str',
+            'my_team',
+            'team_rank',
+            'opponent',
+            'opponent_rank',
+            'team_venue',
+            'series_record'
+        ]
+        self.last_game_list[count] = self.last_game_list[count][new_column_order].copy()
+        
+
+    def __build_all_prior_matchup_next_opp_list_frame(self, count):
+        columns_to_drop = [
+            'team_win_bool',
+            'is_current_season_bool',
+            'is_last_game_bool',
+            'is_next_game_bool'
+        ]
+        self.all_prior_matchup_next_opp_list.append(pd.DataFrame())
+        self.all_prior_matchup_next_opp_list[count] = \
+        self.team_schedule_frame_list[count][
+            (self.team_schedule_frame_list[count]['team_pts'] >= 0) &
+            (
+                (
+                    (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['my_team'].iloc[-1]) &
+                    (self.team_schedule_frame_list[count]['opponent']==self.next_game_list[count]['opponent'].iloc[-1]) 
+                ) |
+                (
+                    (self.team_schedule_frame_list[count]['opponent']==self.next_game_list[count]['my_team'].iloc[-1]) &
+                    (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['opponent'].iloc[-1]) 
+                )
+            )
+        ].copy()
+
+        new_column_order = [
+            'season',
+            'week',
+            'season_type',
+            'start_time_str',
+            'my_team',
+            'team_rank',
+            'opponent',
+            'opponent_rank',
+            'team_pts',
+            'opponent_pts',
+            'winner',
+            'team_venue'
+        ]
+
+        self.all_prior_matchup_next_opp_list[count] = self.all_prior_matchup_next_opp_list[count][new_column_order]
+
+        #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
+        #RANK 26 REPRESENTS UNRANKED
+        self.all_prior_matchup_next_opp_list[count] = self.__format_rank_26(
+            self.all_prior_matchup_next_opp_list[count], 'team_rank', ur_str, 1
+        )
+        self.all_prior_matchup_next_opp_list[count] = self.__format_rank_26(
+            self.all_prior_matchup_next_opp_list[count], 'opponent_rank', ur_str, 1
+        )
+
+    def __format_rank_26(self, df, field, unranked_format_str=ur_str, is_multi_record_frame=1):
+        
+        temp_df = pd.DataFrame()
+        
+        temp_df = df.copy()
+        temp_df = temp_df.copy()
+        
+        if is_multi_record_frame == 1:
+            df[field] = df[field].apply(lambda x: str(x))
+        elif is_multi_record_frame == 0:
+            df[field] = df[field].to_string(index=False).strip()
+        
+        temp_df[field] = np.where(
+            temp_df[field].astype(str) == '26',
+            unranked_format_str,
+            temp_df[field].apply(lambda x: '#' + str(x))
+        )
+        
+        return temp_df
+        
+        
 class Rankings(object):
 
     def __init__(self):
