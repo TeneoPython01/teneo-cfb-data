@@ -474,11 +474,49 @@ class Schedule(object):
                         (self.team_schedule_frame_list[count]['my_team']==self.next_game_list[count]['opponent'].iloc[-1]) 
                     )
                 )
-            ].copy().drop(
-                columns_to_drop,
-                axis=1,
-                inplace=False
+            ].copy()
+            
+            new_column_order = [
+                'season',
+                'week',
+                'season_type',
+                'start_time_str',
+                'my_team',
+                'team_rank',
+                'opponent',
+                'opponent_rank',
+                'team_pts',
+                'opponent_pts',
+                'winner',
+                'team_venue'
+            ]
+
+            self.all_prior_matchup_next_opp_list[count] = self.all_prior_matchup_next_opp_list[count][new_column_order]
+
+            #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
+            #RANK 26 REPRESENTS UNRANKED
+            self.all_prior_matchup_next_opp_list[count]['team_rank'] = self.all_prior_matchup_next_opp_list[count][
+                'team_rank'
+            ].apply(lambda x: str(x))#.to_string(index=False).strip()
+            self.all_prior_matchup_next_opp_list[count]['team_rank'] = np.where(
+                self.all_prior_matchup_next_opp_list[count]['team_rank'].astype(str) == '26',
+                '(unranked)',
+                self.all_prior_matchup_next_opp_list[count]['team_rank'].apply(lambda x: '#' + str(x))
             )
+            self.all_prior_matchup_next_opp_list[count]['opponent_rank'] = self.all_prior_matchup_next_opp_list[count][
+                'opponent_rank'
+            ].apply(lambda x: str(x))#.to_string(index=False).strip()
+            self.all_prior_matchup_next_opp_list[count]['opponent_rank'] = np.where(
+                self.all_prior_matchup_next_opp_list[count]['opponent_rank'].astype(str) == '26',
+                '(unranked)',
+                self.all_prior_matchup_next_opp_list[count]['opponent_rank'].apply(lambda x: '#' + str(x))
+            )
+
+            #self.all_prior_matchup_next_opp_list.drop(
+            #    columns_to_drop,
+            #    axis=1,
+            #    inplace=False
+            #)
             
             new_column_order = [
                 'season',
@@ -600,13 +638,15 @@ class Schedule(object):
             'Home',
             'Away'
         )
-        df_record['series_team'] = record_team
+        #my_team
+        df_record['my_team'] = record_team
         df_record['series_opponent'] = np.where(
             df_record['home_team'] == record_team,
             df_record['away_team'],
             df_record['home_team']
         )
-        df_record['series_opponent'] = np.where(
+        #opponent
+        df_record['opponent'] = np.where(
             df_record['away_team'] == record_team,
             df_record['home_team'],
             df_record['away_team']
@@ -629,18 +669,55 @@ class Schedule(object):
         
         win_loss_record = str(df_record['win_count'].iloc[-1]) + '-' + str(df_record['loss_count'].iloc[-1])
 
+
+        df_record['team_rank'] = np.where(
+            df_record['away_team'] == record_team,
+            df_record['away_team_rank'],
+            df_record['home_team_rank']
+        )
+        df_record['opponent_rank'] = np.where(
+            df_record['away_team'] == record_team,
+            df_record['home_team_rank'],
+            df_record['away_team_rank']
+        )
+
+        
+        
         #df_record.drop(['game_count', 'win_count', 'loss_count'], axis=1, inplace=True)
         df_record = df_record[[
             'season',
             'week',
             'season_type',
-            'series_team',
-            'series_opponent',
+            #my_team
+            'my_team',
+            'team_rank',
+            #opponent
+            'opponent',
+            'opponent_rank',
             'team_pts',
             'opponent_pts',
             'winner',
             'team_venue'
         ]]
+
+        #CONVERT RANKING TO STRING SO UNRANKED CAN BE BLANKED OUT
+        #RANK 26 REPRESENTS UNRANKED
+        df_record['team_rank'] = df_record['team_rank'].apply(
+            lambda x: str(x)
+        )
+        df_record['team_rank'] = np.where(
+            df_record['team_rank'].astype(str) == '26',
+            '(unranked)',
+            df_record['team_rank'].apply(lambda x: '#' + str(x))
+        )
+        df_record['opponent_rank'] = df_record['opponent_rank'].apply(
+            lambda x: str(x)
+        )
+        df_record['opponent_rank'] = np.where(
+            df_record['opponent_rank'].astype(str) == '26',
+            '(unranked)',
+            df_record['opponent_rank'].apply(lambda x: '#' + str(x))
+        )
         
         return win_loss_record, df_record
 

@@ -31,17 +31,29 @@ description_list = []
 
 #PULL SCHEDULE INFORMATION FOR UPCOMING WATCHLIST GAMES
 for i in range(0,len(mySchedule.team_schedule_frame_list)):
-    df_list.append(mySchedule.next_game_list[i])
-    description_list.append('Next upcoming game scheduled for ' + str(mySchedule.next_game_list[i]['my_team'].iloc[0]))
+    df_list.append(
+        mySchedule.next_game_list[i]
+    )
+    description_list.append(
+        'Next upcoming game scheduled for ' +
+        str(mySchedule.next_game_list[i]['my_team'].iloc[0])
+    )
 
 #PULL RESULTS INFORMATION FOR MOST RECENTLY COMPLETED WATCHLIST GAMES
 for i in range(0,len(mySchedule.team_schedule_frame_list)):
-    df_list.append(mySchedule.last_game_list[i])
-    description_list.append('Most recently completed game results for ' + str(mySchedule.last_game_list[i]['my_team'].iloc[0]))
+    df_list.append(
+        mySchedule.last_game_list[i]
+    )
+    description_list.append(
+        'Most recently completed game results for ' +
+        str(mySchedule.last_game_list[i]['my_team'].iloc[0])
+    )
 
 #PULL RESULTS INFORMATION FOR PRIOR MATCHUPS BETWEEN EACH WATCHLIST TEAM AND THEIR NEXT OPPONENT
 for i in range(0,len(mySchedule.team_schedule_frame_list)):
-    df_list.append(mySchedule.all_prior_matchup_next_opp_list[i])
+    df_list.append(
+        mySchedule.all_prior_matchup_next_opp_list[i]
+    )
     description_list.append(
         'Recent series results for matchups between ' + 
         str(mySchedule.next_game_list[i]['my_team'].iloc[0]) +
@@ -51,8 +63,21 @@ for i in range(0,len(mySchedule.team_schedule_frame_list)):
     
 #PULL RESULTS INFORMATION FOR ALL COMPLETED IN-SEASON WATCHLIST GAMES
 for i in range(0,len(mySchedule.team_list)):
-    df_list.append(mySchedule.FindTeamRecordByYear(mySchedule.team_list[i],2019)[1])
-    description_list.append('2019 completed games list for ' + mySchedule.team_list[i])
+    df_list.append(
+        mySchedule.FindTeamRecordByYear(mySchedule.team_list[i],2019)[1]
+    )
+    description_list.append(
+        '2019 completed games list for ' + mySchedule.team_list[i]
+    )
+
+#PULL RESULTS INFORMATION FOR ALL COMPLETED IN-SEASON WATCHLIST NEXT OPPONENT GAMES
+for i in range(0,len(mySchedule.team_list)):
+    df_list.append(
+        mySchedule.FindTeamRecordByYear(mySchedule.next_game_list[i]['opponent'].iloc[-1],2019)[1]
+    )
+    description_list.append(
+        '2019 completed games list for ' + mySchedule.next_game_list[i]['opponent'].iloc[-1]
+    )
 
 #send the schedule data via email
 my_message = mySchedule.df_to_html(
@@ -61,4 +86,6 @@ my_message = mySchedule.df_to_html(
     description_list
 )
 
-mySchedule.send_schedule_html('[Teneo] Watchlist Schedule Data', my_message)
+mySchedule.send_schedule_html(
+    '[Teneo] Watchlist Schedule Data', my_message
+)
