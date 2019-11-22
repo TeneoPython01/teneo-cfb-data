@@ -1,18 +1,11 @@
 # cfb-data
 
-<h1>10/26/2019 SPECIAL NOTE:</h1>
-<p>One of the data sources for this project is 
-api.collegefootballdata.com which has been taken offline temporarily 
-due to a recent hacking incident.  The owner of that API provided 
-some information on reddit (link: 
-https://www.reddit.com/r/CFBAnalysis/comments/dnjxah/collegefootballdatacom_down_until_further_notice/ ). 
-While the data source is offline, I will be focusing on working on 
-one of my long-term goals, which is to establish a local database 
-and ingestion flow.  As a result, the code will be non-functional 
-for some unknown period of time (until the API is back online). 
-For reference, the API was taken offline on 10/26/2019 with the 
-expectation of it eventually being restored, but timelines are 
-not available at the time of writing this note.
+<h1>11/21/2019 SPECIAL NOTE:</h1>
+<p>This code has been broken for about a month until now.  It is working 
+again.  The issue was how I was calculating the series record for
+matchups between two teams that hadn't played against each other
+before (in the year range set in the config.ini).  This became an issue 
+when Georgia was scheduled against Texas A&M.</p>
 
 <b>Summary:</b>
 <p>Python code used to pull data related to FBS college football teams.</p>

@@ -1,20 +1,13 @@
-
 # College Football Functions
 #
-# Author(s):        BDT
+# Author(s):        TeneoPython01@gmail.com
 # Developed:        09/02/2019
-# Last Updated:     10/04/2019
-# Version History:  [v01 09/02/2019] Prototype to get schedule and record info
-#                   [v02 09/21/2019] Rewrite for increased efficiency
-#                   [v03 09/25/2019] Rewrite completed
-#                   [v04 10/04/2019] SCHEDULING COMPLETED, on to next feature
+# Last Updated:     10/11/2019
 #
 # Purpose:          This script is used by the college_football_data_class
-#                   module for various functions
+#                   module for various functions like the API calls
 #
 # Special Notes:    n/a
-#
-# Dev Backlog:      TBD
 
 import pandas as pd #to handle data in pandas dataframes
 pd.set_option('display.max_rows', 1000) #allow printing lots of rows to screen
@@ -27,10 +20,8 @@ import datetime as dt #to track datetime stamps
 global_now = dt.datetime.now()
 
 #import email functions
-import smtplib # used to send mail (which can be used for ATT service to send
-               # text messages as well using 10digitnumber@txt.att.net as the
-               # email address)
-import os.path as op # needed to attach images to an email
+import smtplib
+import os.path as op
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -38,25 +29,33 @@ from email.utils import COMMASPACE, formatdate
 from email import encoders
 
 from dateutil import tz #for timezone handling with datetime dtypes
-api_mask = '%Y-%m-%dT%H:%M:%S.000Z' #this is the datetime string
-                                    #format native to the API
-                                    #output
+
+#this is the datetime mask native to the API output
+api_mask = '%Y-%m-%dT%H:%M:%S.000Z' 
+#this is the datetime mask for readable format
 readable_mask = "%a %m/%d/%Y %I:%M%p %Z" #this is a readable format
 year_mask = "%Y" #just the year
 from_zone = tz.tzutc() #API datetimes are in UTC time
 to_zone = tz.tzlocal() #Used for converting to local timezone
 
 
+#FUNCTION RETURNS ALL API SCHEDULE DATA FOR YEAR REQUESTED
 def get_full_year_schedule_all_teams(year):
+
+    #pull json data from API
     r = requests.get(
         'https://api.collegefootballdata.com/games?year=' + str(year) + \
         '&seasonType=both'
     ).json()
 
+    #convert from json to df
     df = pd.DataFrame(r)
     
+    #sort the data so that the postseason week 1 data is after the regular
+    #season final week data
     df = df.sort_values(by=['season','season_type','week'], ascending=[True,False,True])
     
+    #convert datetimes to readable format
     df['start_time_dt'] = pd.to_datetime(df['start_date'].values, format=api_mask, utc=True).tz_convert(to_zone)
     df['start_time_str'] = pd.to_datetime(df['start_date'].values, format=api_mask, utc=True).tz_convert(to_zone).strftime(readable_mask)
     df['start_year_dtper'] = pd.to_datetime(df['start_date'].values, format=api_mask, utc=True).tz_convert(to_zone).tz_convert(None).to_period('Y')
@@ -65,15 +64,23 @@ def get_full_year_schedule_all_teams(year):
     return df
 
 
+#FUNCTION RETURNS THE FOUR DIGIT INTEGER YEAR BASED ON THE
+#CURRENT SYSTEM DATE.
 def get_current_year():
     return int(dt.datetime.now().year)
 
+#FUNCTION RETURNS THREE OUTPUTS IN TUPLE:
+#1) EIGHT DIGIT INTEGER DATE IN YYYYMMDD FORMAT
+#2) SIX DIGIT INTEGER TIME IN HHMMSS FORMAT
+#4) FIFTEEN CHARACTER STRING IN 'YYYYMMDD_HHMMSS' FORMAT
 def get_current_datetime_int():
     date_int = global_now.year*10000 + global_now.month*100 + global_now.day
     time_int = global_now.hour*10000 + global_now.minute*100 + global_now.second
     date_time_string = str(date_int) + '_' + str(time_int)
     return date_int, time_int, date_time_string
 
+#FUNCTION RETURNS HTML CODE FOR THE HEADER PORTION OF
+#AN HTML FILE
 def html_header(my_title=''):
     html_script = """
     <!DOCTYPE html>
@@ -87,6 +94,8 @@ def html_header(my_title=''):
     
     return html_script
 
+#FUNCTION RETURNS HTML CODE FOR THE STYLE TAG PORTION OF
+#AN HTML FILE
 def html_style_header():
 
     html_script = """
@@ -128,6 +137,9 @@ def html_style_header():
     
     return html_script
 
+#FUNCTION RETURNS HTML CODE FOR A DATAFRAME THAT IS
+#PASSED AS A PARAMETER AND ASSIGNS THE TABLE
+#CLASS NAME TO MATCH THE STYLE TAG CLASS NAME
 def html_from_df(df):
 
     html_script = df.to_html(index=False).replace(
@@ -137,6 +149,8 @@ def html_from_df(df):
     
     return html_script
 
+#FUNCTION RETURNS HTML CODE FOR THE FOOTER PORTION OF
+#AN HTML FILE
 def html_footer():
 
     html_script = """
@@ -146,6 +160,8 @@ def html_footer():
     
     return html_script
 
+#FUNCTION RETURNS HEADER, STYLE TAG, DATAFRAMES, AND FOOTER
+#HTML CODE IN ONE CONCATENATED STRING
 def df_to_html(my_title, df):
 
     html_script = ''
@@ -181,20 +197,26 @@ def sendmail(send_from, send_to, subject, message,
              files, server="localhost", port=587, 
              username='', password='', use_tls=True):
 
+    #if the send_to param is a list, then convert
+    #to a string with a specific format to enable
+    #sending to multiple recipients
     if type(send_to) is list:
         send_to = ' , '.join(send_to)
     
+    #if the files param is not a list, then
+    #convert it into a list
     if type(files) is not list:
         files = [ files ]
 
+    #create MIME object and assign attributes
     msg = MIMEMultipart()
     msg['From'] = send_from
     msg['To'] = send_to
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
-
     msg.attach(MIMEText(message, 'html'))
 
+    #attach the file(s) (if any)
     for path in files:
         part = MIMEBase('application', "octet-stream")
         with open(path, 'rb') as file:
@@ -204,13 +226,19 @@ def sendmail(send_from, send_to, subject, message,
                         'attachment; filename="{}"'.format(op.basename(path)))
         msg.attach(part)
 
+    #create the SMTP object and assign attributes
     smtp = smtplib.SMTP(server, port)
     if use_tls:
         smtp.starttls()
+
+    #log into mail account and send email
     smtp.login(username, password)
     smtp.sendmail(send_from, send_to.split(','), msg.as_string())
+
+    #close the SMTP connection
     smtp.quit()
 
+#FUNCTION RETURNS ALL RANKING DATA FOR YEAR REQUESTED
 def get_rankings_all_weeks(year):
     
     #pull rankings data from sports-reference.com 
@@ -351,7 +379,7 @@ def get_rankings_all_weeks(year):
         'rank_chg',
         'conf',
         'sub_conf',
-        'record',        
+        'record'       
     ]
     df = df[sorted_cols]
 
@@ -372,6 +400,96 @@ def get_rankings_all_weeks(year):
             'record': str
         }
     )
-
+    
+    # TEMP FIX FOR PLAYOFF RANKING WEEK MISMATCH
+    df['week'] = df['week'] + 10
+    df['season_week'] = df['season_week'] + 10
     
     return df
+
+def get_poll_data(year):
+    #pull rankings data from sports-reference.com 
+    #for the given year as large HTML text string
+    r = requests.get(
+        'https://api.collegefootballdata.com/rankings?year=' + str(year) + '&seasonType=both'
+    ).json()
+
+    temp = pd.DataFrame(r)
+
+    temp2 = pd.DataFrame(temp['polls'][0])
+
+    temp3 = pd.DataFrame(temp2['ranks'][0])
+
+    full_df = pd.DataFrame()
+    for level_1_count in range(temp.index.stop):
+        temp2 = pd.DataFrame(temp['polls'].iloc[level_1_count])
+        for level_2_count in range(temp2.index.stop):
+            layer_2_df = pd.DataFrame(temp['polls'].iloc[level_1_count])
+            layer_3_df = pd.DataFrame(layer_2_df['ranks'].iloc[level_2_count])
+
+            layer_3_df['season'] = temp['season'].iloc[level_1_count].astype(int).round()
+            layer_3_df['week'] = temp['week'].iloc[level_1_count].astype(int).round()
+            layer_3_df['poll'] = temp2['poll'].iloc[level_2_count]
+
+            full_df = full_df.append(layer_3_df, sort=True)
+
+    full_df['season_week'] = full_df['season']*100 + full_df['week']
+    full_df['season_week'] = full_df['season_week'].astype(int).round()
+    full_df['series'] = np.where(
+        (full_df['poll'].apply(lambda x: str(x).find('FCS')) >= 0)
+        | (full_df['poll'].apply(lambda x: str(x).find('AFCA')) >= 0),
+        'FCS',
+        'FBS'
+    )
+
+    full_df['series_division'] = full_df['series']
+    full_df['series_division'] = np.where(
+        (full_df['series_division']=='FCS')
+        & (full_df['poll'].apply(lambda x: str(x).find(' II ')) >= 0),
+        full_df['series'] + ' D2',
+        full_df['series_division']
+    )
+    full_df['series_division'] = np.where(
+        (full_df['series_division']=='FCS')
+        & (full_df['poll'].apply(lambda x: str(x).find(' III ')) >= 0),
+        full_df['series'] + ' D3',
+        full_df['series_division']
+    )
+    full_df['is_playoff_poll'] = np.where(
+        (full_df['poll'].apply(lambda x: str(x).find('Playoff')) >= 0),
+        1,
+        0
+    )
+    full_df['series_division'] = np.where(
+        (full_df['series_division']=='FCS'),
+        'FCS D1',
+        full_df['series_division']
+    )
+    full_df['first_place_votes'] = full_df['firstPlaceVotes']
+    full_df['team'] = full_df['school']
+
+    full_df = full_df[[
+        'series_division',
+        'poll',
+        'season',
+        'week',
+        'season_week',
+        'rank',
+        'team',
+        'conference',
+        'first_place_votes',
+        'points',
+        'is_playoff_poll'
+    ]]
+
+
+    full_df = full_df.sort_values(
+        ['series_division','season','week','is_playoff_poll','poll','rank'], 
+        ascending=[True, False, False, False, True, True]
+    ).reset_index()
+
+    #print(full_df)
+
+    #db.ingest(full_df, 'cfb_rankings_c', 'replace')\
+    
+    return full_df

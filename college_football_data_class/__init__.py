@@ -1,24 +1,15 @@
 # College Football Data Class Module
 #
-# Author(s):        BDT
+# Author(s):        TeneoPython01@gmail.com
 # Developed:        09/02/2019
 # Last Updated:     10/11/2019
-# Version History:  [v01 09/02/2019] Prototype to get schedule and record info
-#                   [v02 09/21/2019] Rewrite for increased efficiency
-#                   [v03 09/25/2019] Rewrite completed
-#                   [v04 10/04/2019] SCHEDULING COMPLETED, on to next feature
-#                   [v05 10/11/2019] Enhancements made to email frames
-#                   [v06 10/11/2019] Improvements to readability and commenting
 #
-# Purpose:          This script is used to establish the class objects
+# Purpose:          This script is used to establish the schedule class and 
+#                   its attributes
 #
 # Special Notes:    n/a
-#
-# Dev Backlog:      
-#                   1) ffill() the ranking for a team in a given season
 
-
-# import cfb_func with custom path
+#import cfb_func with custom path
 import sys, os
 sys.path.append(os.path.dirname(__file__))
 import cfb_func as cfb_func
@@ -31,30 +22,35 @@ import configparser
 config = configparser.ConfigParser()
 config.read('./config/config.ini')
 
-# import numpy to leverage np.where() for conditional df handling
+#import numpy to leverage np.where() for
+#conditional df handling
 import numpy as np
 
-#pandas for dataframes
+#import pandas for dataframes
 import pandas as pd
 
+#set formatted string used for displaying the
+#rank for unranked teams
 ur_str = '(unranked)'
 
 #establish the Schedule class
 class Schedule(object):
 
-    #__init__() "MAGIC METHOD" CREATES:
-    #   self.num_past_years AS INT
-    #   self.team_list AS LIST
-    #   self.current_year AS INT
+    #__init__() "MAGIC METHOD" sets the current season
+    #and then runs a couple methods to set up class
+    #properties using the config file and cfb APIs
     def __init__(self):
+        #set current year
         self.current_year = cfb_func.get_current_year()
 
+        #pull watchlist teams and other config data
         self.__start_configparser()
         
-        self.GetMultiYearScheduleAllTeams() #loads the schedule data
+        #pull all schedule and rank data
+        self.GetMultiYearScheduleAllTeams()
 
 
-    #METHOD INITIALIZES THE CONFIGPARSER 
+    #PULL CONFIG DATA LIKE WATCHLIST TEAMS
     def __start_configparser(self):
 
         #pull the teams to watch from the config into a list.  the
@@ -62,12 +58,13 @@ class Schedule(object):
         config_team_list = config['SCHEDULE']['teams to watch'].split('\n')
         config_team_list.pop(0)
 
-        #if the config file isnt properly configured, kill the program
+        #if the config file isnt properly configured with at
+        #least one team, then kill the program
         if len(config_team_list) == 0:
             print('NO WATCHLIST TEAMS FOUND IN CONFIG.INI.')
             exit()
 
-        #pull the number of past years worth of schedule data to pull
+        #identify the number of past years worth of schedule data to pull
         #from the config file
         config_num_past_years = int(config['SCHEDULE']['num past years'])
 
@@ -77,45 +74,51 @@ class Schedule(object):
 
 
 
-    #METHOD CREATES:
-    # 1) self.df_multi_yr_schedule_all_teams AS PANDAS DATAFRAME which
-    #        holds the schedule for all years in range for every team
-    # 2) self.team_schedule_frame_list[team_list_index] AS LIST which
-    #       contains the schedule for all years for the teams on the
-    #       watch list
-    # 3) self.next_game_list[team_list_index] AS LIST which contains
-    #       information for the next upcoming game for each team on
-    #       the watch list
-    # 4) self.last_game_list[team_list_index] AS LIST which contains
-    #        information for the most recently completed game for each
-    #        team on the watch list
-    # 5) self.prior_matchup_next_opp_list[team_list_index] AS LIST which
-    #       contains information for all historical matchups where a team
-    #       on the watchlist played their next opponent in next_game_list
-    # NOTE: team_list_index IS THE INDEX OF THE TEAM FROM self.team_list[]
-    #
-    # Example uses:
-    #       self.GetMultiYearScheduleAllTeams() #loads the schedule data
+    #PULL ALL SCHEDULE AND RANK DATA
+    #Store the information as follows:
+    # 1) self.df_multi_yr_schedule_all_teams
+    #       holds the schedule for all years in range for 
+    #       every team
+    # 2) self.team_schedule_frame_list[team_list_index]
+    #       contains the schedule for all years for the teams
+    #       on the watch list
+    # 3) self.next_game_list[team_list_index] 
+    #       contains information for the next upcoming game
+    #       for each team on the watch list
+    # 4) self.last_game_list[team_list_index] 
+    #       contains information for the most recently 
+    #       completed game for each team on the watch list
+    # 5) self.prior_matchup_next_opp_list[team_list_index]
+    #       contains information for all historical matchups 
+    #       where a team on the watchlist played their next 
+    #       opponent in next_game_list
+    # 6) self.all_ranking_data
+    #       contains all season and all week rank data for
+    #       the years in range
     def GetMultiYearScheduleAllTeams(self):
 
+        #set up a coupleof  empty dataframes
         self.df_multi_yr_schedule_all_teams = pd.DataFrame()
         self.all_ranking_data = pd.DataFrame()
+        self.all_poll_data = pd.DataFrame()
         
-        #populate self.df_multi_yr_schedule_all_teams with the
-        #schedule data from cfb_func.get_full_year_schedule_all_teams()
-        #for each year in the range of num_past_years years ago through
-        #current year;
-        #also, populate self.all_ranking_data with the week-by-week
-        #top 25 AP rankings for the same year range
+        #for all years in range
         for year_item in range(self.current_year-self.num_past_years+1,
                                self.current_year+1):
 
+            #populate self.df_multi_yr_schedule_all_teams with the
+            #schedule data for each year in range
             self.df_multi_yr_schedule_all_teams = \
             self.df_multi_yr_schedule_all_teams.append(
                 cfb_func.get_full_year_schedule_all_teams(year_item)
             )
+            #populate self.all_ranking_data with the AP ranking data
+            #for every week for each year in range
             self.all_ranking_data = self.all_ranking_data.append(
                 cfb_func.get_rankings_all_weeks(year_item)
+            )
+            self.all_poll_data = self.all_poll_data.append(
+                cfb_func.get_poll_data(year_item)
             )
 
         #merge the ranking data into self.df_multi_yr_schedule_all_teams
@@ -132,11 +135,12 @@ class Schedule(object):
             ]]
         )
         
-        #populate self.current_ranking_data with latest season & week
-        #ranking data
+        #filter self.all_ranking_data down to just the latest
+        #season & week ranking data
         self.current_ranking_data = self.all_ranking_data[
             (self.all_ranking_data['season_week'] == \
-             self.all_ranking_data['season_week'].max())
+             self.all_ranking_data['season_week'].max()
+            )
         ]
 
         #flag records in the schedule frame for teams on the watch list
@@ -160,19 +164,15 @@ class Schedule(object):
         #iterate through the teams in the team watch list
         for team_item in self.team_list:
 
-            #add an empty df to the temp_df_list
-            #self.temp_df_list.append(pd.DataFrame())
-
             #append the full all-team multi-year schedule to 
             #the team_schedule_frame_list df
             self.team_schedule_frame_list.append(
                 self.df_multi_yr_schedule_all_teams.copy()
             )
-            
-            #this code may seem redundant, but it clears the dreaded
-            #"copy of a slice of a copy of a whatever" warning
+
+            #clear "copy of a slice" warning
             self.team_schedule_frame_list[count] = \
-            self.team_schedule_frame_list[count].copy()
+            self.team_schedule_frame_list[count].copy() 
 
             #filter the current position of the list's
             #df to just the current team_item
@@ -227,16 +227,14 @@ class Schedule(object):
             count = count + 1
 
         
-    #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE FOR A 
-    #GIVEN TEAM AND SEASON
-    #SEASON IS YEAR (INT), MUST BE WITHIN LAST num_past_years YEARS
+    #FUNCTION RETURNS WIN-LOSS RECORD AND SCHEDULE FOR 
+    #A GIVEN TEAM AND SEASON.
     #Example Uses:
     #       team_record_string = self.FindTeamRecordByYear('Georgia',2017)[0]
     #       team_record_details_dataframe = self.FindTeamRecordByYear('Georgia',2017)[1]
     def FindTeamRecordByYear(self, record_team, record_year):
 
-        #force record_year param into int type (otherwise sometimes
-        #it gets autotyped as str, which causes issues)
+        #force record_year param into int type
         record_year = int(record_year)
         
         #create a df to hold the team records
@@ -285,14 +283,12 @@ class Schedule(object):
             'Home',
             'Away'
         )
-        #my_team
         df_record['my_team'] = record_team
         df_record['series_opponent'] = np.where(
             df_record['home_team'] == record_team,
             df_record['away_team'],
             df_record['home_team']
         )
-        #opponent
         df_record['opponent'] = np.where(
             df_record['away_team'] == record_team,
             df_record['home_team'],
@@ -312,7 +308,8 @@ class Schedule(object):
         df_record['win_count'] = df_record.groupby('season')['team_win_bool'].sum().iloc[-1]
         df_record['loss_count'] = df_record['game_count'] - df_record['win_count']
         
-        win_loss_record = str(df_record['win_count'].iloc[-1]) + '-' + str(df_record['loss_count'].iloc[-1])
+        win_loss_record = str(df_record['win_count'].iloc[-1]) + '-' + \
+        str(df_record['loss_count'].iloc[-1])
 
 
         df_record['team_rank'] = np.where(
@@ -354,10 +351,12 @@ class Schedule(object):
     #       series_win_loss_record_string = FindTeamVsOpponentRecentSeriesRecord('Nebraska', 'Northwestern')[0]
     #       series_win_loss_details_dataframe = FindTeamVsOpponentRecentSeriesRecord('Nebraska', 'Northwestern')[1]
     def FindTeamVsOpponentRecentSeriesRecord(self, series_team, series_opponent):
-        #create a df to hold the series records
+
+        #create empty df to hold the series records
         df_series = pd.DataFrame()
         df_series = self.df_multi_yr_schedule_all_teams.copy()
         df_series = df_series.copy() #suppress the copy/slice/copy warning
+        
         
         #create new fields used to calculate record
         df_series['series_team'] = series_team
@@ -402,6 +401,17 @@ class Schedule(object):
             'Away'
         )
             
+        #print(1,df_series[df_series['home_team']==series_team])
+        #print(2,df_series[df_series['away_team']==series_team])
+
+        #print(3,df_series[df_series['home_team']==series_opponent])
+        #print(4,df_series[df_series['away_team']==series_opponent])
+        
+        #print(5,df_series[df_series['home_team'] != df_series['away_team']])
+        
+        #print(6,df_series[df_series['team_pts'] >= 0])
+
+        
         df_series = df_series[
             (
                 (df_series['home_team'] == series_team) |
@@ -419,7 +429,9 @@ class Schedule(object):
             )
         ]
         
-        df_series = df_series[[
+        #print(777,df_series)
+
+        columns_to_keep = [
             'season',
             'week',
             'season_type',
@@ -430,25 +442,34 @@ class Schedule(object):
             'winner',
             'team_venue',
             'team_win_bool'
-        ]]
-        
-        df_series['game_count'] = df_series.groupby('series_team')['team_win_bool'].count().iloc[-1]
-        df_series['win_count'] = df_series.groupby('series_team')['team_win_bool'].sum().iloc[-1]
-        df_series['loss_count'] = df_series['game_count'] - df_series['win_count']
-        
-        win_loss_record = str(df_series['win_count'].iloc[-1]) + '-' + str(df_series['loss_count'].iloc[-1])
+        ]
 
-        df_series = df_series[[
+        df_series = df_series[columns_to_keep]
+        
+        if len(df_series.index) == 0:
+            df_series['game_count'] = 0
+            df_series['win_count'] = 0
+            df_series['loss_count'] = 0
+            win_loss_record = '0-0'
+        else:
+            df_series['game_count'] = df_series.groupby('series_team')['team_win_bool'].count().iloc[-1]
+            df_series['win_count'] = df_series.groupby('series_team')['team_win_bool'].sum().iloc[-1]
+            df_series['loss_count'] = df_series['game_count'] - df_series['win_count']
+
+            win_loss_record = str(df_series['win_count'].iloc[-1]) + '-' + \
+            str(df_series['loss_count'].iloc[-1])
+
+        columns_to_keep = [
             'season',
             'week',
             'season_type',
-            #'series_team',
-            #'series_opponent',
             'team_pts',
             'opponent_pts',
             'winner',
             'team_venue'
-        ]]
+        ]
+
+        df_series = df_series[columns_to_keep]
         
         df_series['team_yr_rec'] = ''
         df_series['opp_yr_rec'] = ''
@@ -459,24 +480,31 @@ class Schedule(object):
             row['opp_yr_rec'] = str(self.FindTeamRecordByYear(series_opponent, row['season'])[0])
             new_df_series = new_df_series.append(row)
 
-        new_df_series = new_df_series[
-            [
-                'season',
-                'week',
-                'season_type',
-                'team_pts',
-                'opponent_pts',
-                'winner',
-                'team_venue',
-                'team_yr_rec',
-                'opp_yr_rec'
-            ]
+        columns_to_keep = [
+            'season',
+            'week',
+            'season_type',
+            'team_pts',
+            'opponent_pts',
+            'winner',
+            'team_venue',
+            'team_yr_rec',
+            'opp_yr_rec'
         ]
 
-        new_df_series['season'] = pd.to_numeric(new_df_series['season'], downcast='integer')
-        new_df_series['week'] = pd.to_numeric(new_df_series['week'], downcast='integer')
-        new_df_series['team_pts'] = pd.to_numeric(new_df_series['team_pts'], downcast='integer')
-        new_df_series['opponent_pts'] = pd.to_numeric(new_df_series['opponent_pts'], downcast='integer')
+        #print(len(df_series.index))
+        #print(df_series)
+        #print(len(new_df_series.index))
+        #print(new_df_series)
+        
+        if len(df_series.index) == 0:
+            pass
+        else:
+            new_df_series = new_df_series[columns_to_keep]
+            new_df_series['season'] = pd.to_numeric(new_df_series['season'], downcast='integer')
+            new_df_series['week'] = pd.to_numeric(new_df_series['week'], downcast='integer')
+            new_df_series['team_pts'] = pd.to_numeric(new_df_series['team_pts'], downcast='integer')
+            new_df_series['opponent_pts'] = pd.to_numeric(new_df_series['opponent_pts'], downcast='integer')
         
         return win_loss_record, new_df_series
 
@@ -494,9 +522,11 @@ class Schedule(object):
     #        )
     def df_to_html(self, my_title, df_or_df_list, df_description_or_list):
         
+        #if param calls a string, convert to list
         if type(df_or_df_list) is not list:
             df_or_df_list = [ df_or_df_list ]
 
+        #if param calls a string, convert to list
         if type(df_description_or_list) is not list:
             df_description_or_list = [ df_description_or_list ]
            
@@ -516,7 +546,7 @@ class Schedule(object):
 
         return html_script
     
-    #METHOD EMAILS THE SCHEDULE DATA AS HTML
+    #METHOD EMAILS THE SCHEDULE DATA AS HTML ATTACHMENT
     #EMAIL SERVER CONNECTION IS DEFINED IN CONFIG.INI
     # Example Uses:
     #        self.send_scheudle_html('This is the subject', 'Dear so and so, How are you?', attachment_filename)
@@ -559,13 +589,8 @@ class Schedule(object):
     #
     #USAGE:
     #   rank_df, rank_str = RankForTeamLineItem(2019, 7, 'Wake Forest')
-    #   print(rank_df) # returns a frame that shows WFU
-    #                  # ranked as #19 at the given time
-    #   print(rank_str)# returns a string showing '19'
-    #   print(RankForTeamLineItem(2019, 7, 'Wake Forest')[0]) prints the df
-    #   print(RankForTeamLineItem(2019, 7, 'Wake Forest')[1]) prints the str
     def RankForTeamAtPointInTime(self, season, week, team):
-        #create df as a pandas dataframe
+        #create empty df as a pandas dataframe
         df = pd.DataFrame()
 
         #make df a copy of the ranking data for the given season/week/team
@@ -605,11 +630,17 @@ class Schedule(object):
     #FUNCTION MERGES THE SEASON-BY-SEASON WEEK-BY-WEEK AP RANKING
     #DATA INTO THE MULTIYR ALL TEAM SCHEDULE DATA
     #USAGE:
-    #   __merge_rankings_into_schedule_data(multiyr_schedule_df, rankings_df):
+    #   df = __merge_rankings_into_schedule_data(multiyr_schedule_df, rankings_df):
     def __merge_rankings_into_schedule_data(self, schedule_df, rankings_df):
 
+        #temp_df1 is the schedule data
         temp_rank_df1 = schedule_df.copy()
+
+        #temp_df2 is the ranking data
         temp_rank_df2 = rankings_df.copy()
+
+        #temp_df3 is where temp_dfs 1 and 2 get combined
+        #start with merging on home_team
         temp_rank_df3 = temp_rank_df1.merge(
             temp_rank_df2,
             how='left',
@@ -618,12 +649,16 @@ class Schedule(object):
             suffixes=('_l','_r')
         )
 
+        #set all unranked teams to rank 26 and prev
+        #rank 26 so rank_chg can be calced
         temp_rank_df3[['rank','prev_rank']] = \
         temp_rank_df3[['rank','prev_rank']].fillna(26)
 
+        #calc rank_chg
         temp_rank_df3['rank_chg'] = \
         temp_rank_df3['prev_rank'] - temp_rank_df3['rank']
 
+        #rename columns
         temp_rank_df3.rename(
             columns={
                 'team':'home_team_drop',
@@ -634,6 +669,8 @@ class Schedule(object):
             inplace=True
         )
 
+        #set all unranked teams to rank 26 and prev
+        #rank 26 so rank_chg can be calced
         temp_rank_df3[[
             'home_team_rank',
             'home_team_prev_rank',
@@ -644,6 +681,8 @@ class Schedule(object):
             'home_team_rank_chg'
         ]].fillna(26).astype(int).round()
 
+        #temp_df3 is where temp_dfs 1 and 2 get combined
+        #now merge on away_team
         temp_rank_df3 = temp_rank_df3.merge(
             temp_rank_df2,
             how='left',
@@ -652,6 +691,8 @@ class Schedule(object):
             suffixes=('_l','_r')
         )
 
+        #set all unranked teams to rank 26 and prev
+        #rank 26 so rank_chg can be calced
         temp_rank_df3[[
             'rank',
             'prev_rank'
@@ -660,10 +701,12 @@ class Schedule(object):
             'prev_rank'
         ]].fillna(26)
 
+        #calc rank_chg
         temp_rank_df3['rank_chg'] = (
             temp_rank_df3['prev_rank'] - temp_rank_df3['rank']
         )
 
+        #rename columns
         temp_rank_df3.rename(
             columns={
                 'team':'away_team_drop',
@@ -674,6 +717,8 @@ class Schedule(object):
             inplace=True
         )
 
+        #set all unranked teams to rank 26 and prev
+        #rank 26 so rank_chg can be calced
         temp_rank_df3[[
             'away_team_rank',
             'away_team_prev_rank',
@@ -684,6 +729,7 @@ class Schedule(object):
             'away_team_rank_chg'
         ]].fillna(26).astype(int).round()
         
+        #drop unneeded columns
         temp_rank_df3.drop(
             [
                 'home_team_drop',
@@ -697,16 +743,14 @@ class Schedule(object):
 
         #add additional columns to the current position of the list's df
         self.team_schedule_frame_list[count]['my_team'] = team_item
+        self.team_schedule_frame_list[count]['team_pts'] = None
+        self.team_schedule_frame_list[count]['opponent_pts'] = None
 
         self.team_schedule_frame_list[count]['opponent'] = np.where(
             self.team_schedule_frame_list[count]['home_team'] == team_item,
             self.team_schedule_frame_list[count]['away_team'],
             self.team_schedule_frame_list[count]['home_team']
         )
-
-        self.team_schedule_frame_list[count]['team_pts'] = None
-
-        self.team_schedule_frame_list[count]['opponent_pts'] = None
 
         self.team_schedule_frame_list[count]['team_pts'] = np.where(
             self.team_schedule_frame_list[count]['home_team'] == team_item,
@@ -975,27 +1019,3 @@ class Schedule(object):
         )
         
         return temp_df
-        
-        
-class Rankings(object):
-
-    def __init__(self):
-        #initialize the year
-        self.ranking_year = cfb_func.get_current_year()
-        #initialize the rankings df data
-        self.get_rankings_all_weeks(self.ranking_year)
-    
-    def get_rankings_all_weeks(self, year):
-        self.all_ranking_data = cfb_func.get_rankings_all_weeks(year)
-        self.current_ranking_data = self.all_ranking_data[
-            (self.all_ranking_data['week'] == self.all_ranking_data['week'].max()) &
-            (self.all_ranking_data['season'] == self.all_ranking_data['season'].max())
-        ]
-
-    def get_rankings_for_week(self, year, week):
-        df = self.current_ranking_data = self.ranking_data[
-            (myRankselfings.all_ranking_data['week'] == week)
-        ]
-
-        return df
-
